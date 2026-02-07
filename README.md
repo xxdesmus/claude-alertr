@@ -29,31 +29,31 @@ User responds? ──► Dismiss hook cancels timer               │
 │  YOUR MACHINE                                                           │
 │                                                                         │
 │  ┌───────────────────────────────────────────────────────────┐          │
-│  │  Claude Code                                               │          │
-│  │                                                            │          │
+│  │  Claude Code                                              │          │
+│  │                                                           │          │
 │  │  ┌──────────────────┐       ┌───────────────────────────┐ │          │
-│  │  │  Notification     │       │  UserPromptSubmit          │ │          │
-│  │  │  event fires      │       │  event fires               │ │          │
+│  │  │  Notification    │       │  UserPromptSubmit         │ |          │
+│  │  │  event fires     │       │  event fires              │ |          │
 │  │  └────────┬─────────┘       └─────────────┬─────────────┘ │          │
 │  └───────────┼───────────────────────────────┼───────────────┘          │
 │              │                               │                          │
 │              ▼                               ▼                          │
 │  ┌───────────────────────┐     ┌──────────────────────────┐             │
-│  │  idle-alert.sh         │     │  dismiss-alert.sh         │             │
-│  │                        │     │                           │             │
-│  │  1. Parse session_id   │     │  1. Parse session_id      │             │
-│  │  2. Read config        │     │  2. Kill background timer │             │
-│  │  3. Write marker file  │     │  3. Remove marker file    │             │
-│  │  4. Start background   │     └──────────────────────────┘             │
-│  │     sleep timer        │                                              │
+│  │  idle-alert.sh        │     │  dismiss-alert.sh        │             │
+│  │                       │     │                          │             │
+│  │  1. Parse session_id  │     │  1. Parse session_id     │             │
+│  │  2. Read config       │     │  2. Kill background timer│             │
+│  │  3. Write marker file │     │  3. Remove marker file   │             │
+│  │  4. Start background  │     └──────────────────────────┘             │
+│  │     sleep timer       │                                              │
 │  └────────┬──────────────┘        /tmp/claude-alertr/                   │
 │           │                       ├── <session_id>       (marker file)  │
-│           │  (after delay)        └── <session_id>.pid   (timer PID)   │
+│           │  (after delay)        └── <session_id>.pid   (timer PID)    │
 │           ▼                                                             │
 │  ┌────────────────────┐                                                 │
-│  │  curl POST /alert   │──────────────────┐                             │
-│  │  + Bearer token     │                  │                             │
-│  └────────────────────┘                  │                             │
+│  │  curl POST /alert  │-──────────────────┐                             │
+│  │  + Bearer token    │                   │                             │
+│  └────────────────────┘                   │                             │
 │                                           │                             │
 │  ~/.claude-alertr/                        │                             │
 │  ├── config          (URL, token, delay)  │                             │
@@ -69,40 +69,40 @@ User responds? ──► Dismiss hook cancels timer               │
 │  CLOUDFLARE WORKERS                                                     │
 │                                                                         │
 │  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │  claude-alertr Worker (src/index.ts)                               │  │
-│  │                                                                    │  │
-│  │  ┌─────────────┐  ┌──────────────────────────────────────────┐   │  │
+│  │  claude-alertr Worker (src/index.ts)                              │  │
+│  │                                                                   │  │
+│  │  ┌─────────────┐  ┌──────────────────────────────────────────-┐   │  │
 │  │  │  Rate Limit  │──►  Route Handler                           │   │  │
 │  │  │  (per-IP)    │  │                                          │   │  │
-│  │  └─────────────┘  │  GET /       → Health check (JSON)       │   │  │
+│  │  └─────────────┘  │  GET /       → Health check (JSON)        │   │  │
 │  │                    │  GET /setup  → Setup wizard (HTML)       │   │  │
-│  │  ┌─────────────┐  │  POST /alert → Auth → Dispatch           │   │  │
-│  │  │  Auth Check  │◄─│  POST /test  → Auth → Test dispatch     │   │  │
+│  │  ┌─────────────┐  │  POST /alert → Auth → Dispatch            │   │  │
+│  │  │  Auth Check  │◄─│  POST /test  → Auth → Test dispatch      │   │  │
 │  │  │  (SHA-256    │  └──────────────────────────────────────────┘   │  │
 │  │  │  timing-safe)│                                                 │  │
 │  │  └──────┬──────┘                                                  │  │
 │  │         │ authenticated                                           │  │
 │  │         ▼                                                         │  │
-│  │  ┌──────────────────────────────────────────────────────────┐    │  │
+│  │  ┌─────────────────────────────────────────────────────────-─┐    │  │
 │  │  │  Notification Dispatch                                    │    │  │
 │  │  │                                                           │    │  │
-│  │  │  ┌─────────────────────┐   ┌──────────────────────────┐  │    │  │
-│  │  │  │  sendWebhook()      │   │  sendEmail()              │  │    │  │
-│  │  │  │  JSON POST to       │   │  Resend API               │  │    │  │
-│  │  │  │  configured URL     │   │  (HTML-escaped payload)   │  │    │  │
-│  │  │  └─────────┬───────────┘   └──────────────┬───────────┘  │    │  │
-│  │  └────────────┼──────────────────────────────┼──────────────┘    │  │
+│  │  │  ┌─────────────────────┐   ┌──────────────────────────┐   │    │  │
+│  │  │  │  sendWebhook()      │   │  sendEmail()             │   │    │  │
+│  │  │  │  JSON POST to       │   │  Resend API              │   │    │  │
+│  │  │  │  configured URL     │   │  (HTML-escaped payload)  │   │    │  │
+│  │  │  └─────────┬───────────┘   └──────────────┬───────────┘   │    │  │
+│  │  └────────────┼──────────────────────────────┼──────────────-┘    │  │
 │  └───────────────┼──────────────────────────────┼────────────────────┘  │
 └──────────────────┼──────────────────────────────┼───────────────────────┘
                    │                              │
                    ▼                              ▼
         ┌──────────────────┐           ┌──────────────────┐
-        │  Webhook Service  │           │  Resend API       │
-        │  (Slack, Discord, │           │                   │
-        │   Pushover, etc.) │           │  ┌─────────────┐ │
-        │                   │           │  │ Email to     │ │
-        │  ┌─────────────┐ │           │  │ configured   │ │
-        │  │ Notification │ │           │  │ recipient    │ │
+        │  Webhook Service │           │  Resend API      │
+        │  (Slack, Discord,│           │                  │
+        │   Pushover, etc.)│           │  ┌─────────────┐ │
+        │                  │           │  │ Email to    │ │
+        │  ┌─────────────┐ │           │  │ configured  │ │
+        │  │ Notification│ │           │  │ recipient   │ │
         │  └─────────────┘ │           │  └─────────────┘ │
         └──────────────────┘           └──────────────────┘
 ```
