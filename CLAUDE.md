@@ -12,7 +12,14 @@ npx vitest           # Run tests in watch mode
 npx tsc --noEmit     # Type check without emitting
 ```
 
-Worker secrets are managed via `wrangler secret put <NAME>` (AUTH_TOKEN, WEBHOOK_URL, RESEND_API_KEY, ALERT_EMAIL_TO, ALERT_EMAIL_FROM).
+Deploy requires specifying the account (multiple accounts on this Cloudflare login):
+```bash
+CLOUDFLARE_ACCOUNT_ID=f6de64c1af101c33b6d229d3c9cdfcb9 npm run deploy
+```
+
+Production URL: `https://claude-alertr.unemployed.workers.dev`
+
+Worker secrets are managed via `wrangler secret put <NAME>` (AUTH_TOKEN, WEBHOOK_URL, RESEND_API_KEY, ALERT_EMAIL_TO, ALERT_EMAIL_FROM). Prefix with `CLOUDFLARE_ACCOUNT_ID=...` when multiple accounts are present.
 
 ## Architecture
 

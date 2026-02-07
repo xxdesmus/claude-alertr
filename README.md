@@ -22,6 +22,128 @@ User responds? ──► Dismiss hook cancels timer               │
 1. **Cloudflare Worker** — A lightweight relay service that receives alerts and forwards them to your webhook URL and/or email
 2. **Claude Code hooks** — Local shell scripts that detect when Claude is idle, wait 60 seconds, then fire if you still haven't responded
 
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│  YOUR MACHINE                                                           │
+│                                                                         │
+│  ┌───────────────────────────────────────────────────────────┐          │
+│  │  Claude Code                                               │          │
+│  │                                                            │          │
+│  │  ┌──────────────────┐       ┌───────────────────────────┐ │          │
+│  │  │  Notification     │       │  UserPromptSubmit          │ │          │
+│  │  │  event fires      │       │  event fires               │ │          │
+│  │  └────────┬─────────┘       └─────────────┬─────────────┘ │          │
+│  └───────────┼───────────────────────────────┼───────────────┘          │
+│              │                               │                          │
+│              ▼                               ▼                          │
+│  ┌───────────────────────┐     ┌──────────────────────────┐             │
+│  │  idle-alert.sh         │     │  dismiss-alert.sh         │             │
+│  │                        │     │                           │             │
+│  │  1. Parse session_id   │     │  1. Parse session_id      │             │
+│  │  2. Read config        │     │  2. Kill background timer │             │
+│  │  3. Write marker file  │     │  3. Remove marker file    │             │
+│  │  4. Start background   │     └──────────────────────────┘             │
+│  │     sleep timer        │                                              │
+│  └────────┬──────────────┘        /tmp/claude-alertr/                   │
+│           │                       ├── <session_id>       (marker file)  │
+│           │  (after delay)        └── <session_id>.pid   (timer PID)   │
+│           ▼                                                             │
+│  ┌────────────────────┐                                                 │
+│  │  curl POST /alert   │──────────────────┐                             │
+│  │  + Bearer token     │                  │                             │
+│  └────────────────────┘                  │                             │
+│                                           │                             │
+│  ~/.claude-alertr/                        │                             │
+│  ├── config          (URL, token, delay)  │                             │
+│  └── hooks/                               │                             │
+│      ├── idle-alert.sh                    │                             │
+│      └── dismiss-alert.sh                 │                             │
+│                                           │                             │
+└───────────────────────────────────────────┼─────────────────────────────┘
+                                            │
+                                            │  HTTPS POST
+                                            ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  CLOUDFLARE WORKERS                                                     │
+│                                                                         │
+│  ┌───────────────────────────────────────────────────────────────────┐  │
+│  │  claude-alertr Worker (src/index.ts)                               │  │
+│  │                                                                    │  │
+│  │  ┌─────────────┐  ┌──────────────────────────────────────────┐   │  │
+│  │  │  Rate Limit  │──►  Route Handler                           │   │  │
+│  │  │  (per-IP)    │  │                                          │   │  │
+│  │  └─────────────┘  │  GET /       → Health check (JSON)       │   │  │
+│  │                    │  GET /setup  → Setup wizard (HTML)       │   │  │
+│  │  ┌─────────────┐  │  POST /alert → Auth → Dispatch           │   │  │
+│  │  │  Auth Check  │◄─│  POST /test  → Auth → Test dispatch     │   │  │
+│  │  │  (SHA-256    │  └──────────────────────────────────────────┘   │  │
+│  │  │  timing-safe)│                                                 │  │
+│  │  └──────┬──────┘                                                  │  │
+│  │         │ authenticated                                           │  │
+│  │         ▼                                                         │  │
+│  │  ┌──────────────────────────────────────────────────────────┐    │  │
+│  │  │  Notification Dispatch                                    │    │  │
+│  │  │                                                           │    │  │
+│  │  │  ┌─────────────────────┐   ┌──────────────────────────┐  │    │  │
+│  │  │  │  sendWebhook()      │   │  sendEmail()              │  │    │  │
+│  │  │  │  JSON POST to       │   │  Resend API               │  │    │  │
+│  │  │  │  configured URL     │   │  (HTML-escaped payload)   │  │    │  │
+│  │  │  └─────────┬───────────┘   └──────────────┬───────────┘  │    │  │
+│  │  └────────────┼──────────────────────────────┼──────────────┘    │  │
+│  └───────────────┼──────────────────────────────┼────────────────────┘  │
+└──────────────────┼──────────────────────────────┼───────────────────────┘
+                   │                              │
+                   ▼                              ▼
+        ┌──────────────────┐           ┌──────────────────┐
+        │  Webhook Service  │           │  Resend API       │
+        │  (Slack, Discord, │           │                   │
+        │   Pushover, etc.) │           │  ┌─────────────┐ │
+        │                   │           │  │ Email to     │ │
+        │  ┌─────────────┐ │           │  │ configured   │ │
+        │  │ Notification │ │           │  │ recipient    │ │
+        │  └─────────────┘ │           │  └─────────────┘ │
+        └──────────────────┘           └──────────────────┘
+```
+
+### Project Structure
+
+```
+claude-alertr/
+├── src/
+│   ├── index.ts           # Worker entry — routing, auth, rate limiting, dispatch
+│   ├── index.test.ts      # Vitest test suite (16 tests)
+│   └── setup-page.ts      # Self-contained HTML/CSS/JS setup wizard
+├── hooks/
+│   ├── idle-alert.sh      # Notification hook — starts alert timer
+│   └── dismiss-alert.sh   # UserPromptSubmit hook — cancels timer
+├── install.sh             # Installs hooks + config to ~/.claude-alertr/
+├── uninstall.sh           # Removes hooks + config (preserves other hooks)
+├── wrangler.toml          # Cloudflare Worker configuration
+├── tsconfig.json          # TypeScript config
+└── package.json           # Dependencies (wrangler, vitest, typescript)
+```
+
+### Security Model
+
+```
+Request ──► AUTH_TOKEN set? ──► No ──► 503 (fail-closed)
+                │
+                ▼ Yes
+            Bearer token ──► Missing/wrong ──► 401 (timing-safe SHA-256 compare)
+                │
+                ▼ Match
+            Rate limit ──► Exceeded ──► 429
+                │
+                ▼ OK
+            Process request
+```
+
+- All user-controlled values in email HTML are escaped via `escapeHtml()`
+- Shell hooks sanitize `session_id` to `[a-zA-Z0-9_-]` before use in file paths
+- Config is read via `grep`/`cut` (never `source`) to prevent code injection
+
 ## Prerequisites
 
 - [Node.js](https://nodejs.org/) 18+
