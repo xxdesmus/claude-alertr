@@ -1,0 +1,13 @@
+{
+  "name": "xxdesmus-claude-alertr",
+  "description": "Alerts you when Claude Code is waiting for your input via webhook or email",
+  "plugins": [
+    {
+      "name": "idle-alert",
+      "path": "./plugins/idle-alert",
+      "description": "Monitors Claude Code for idle states and sends alerts after a configurable delay",
+      "category": "productivity",
+      "tags": ["notifications", "alerts", "slack", "discord", "email", "hooks"]
+    }
+  ]
+}

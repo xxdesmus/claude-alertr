@@ -111,18 +111,26 @@ User responds? ──► Dismiss hook cancels timer               │
 
 ```
 claude-alertr/
+├── .claude-plugin/
+│   └── marketplace.json       # Plugin marketplace catalog
+├── plugins/idle-alert/
+│   ├── .claude-plugin/
+│   │   └── plugin.json        # Plugin manifest (name, version, metadata)
+│   ├── hooks/
+│   │   ├── hooks.json         # Auto-registers Notification + UserPromptSubmit hooks
+│   │   ├── idle-alert.sh      # Notification hook — starts alert timer
+│   │   └── dismiss-alert.sh   # UserPromptSubmit hook — cancels timer
+│   └── skills/setup/
+│       └── SKILL.md           # /idle-alert:setup slash command
 ├── src/
-│   ├── index.ts           # Worker entry — routing, auth, rate limiting, dispatch
-│   ├── index.test.ts      # Vitest test suite (16 tests)
-│   └── setup-page.ts      # Self-contained HTML/CSS/JS setup wizard
-├── hooks/
-│   ├── idle-alert.sh      # Notification hook — starts alert timer
-│   └── dismiss-alert.sh   # UserPromptSubmit hook — cancels timer
-├── install.sh             # Installs hooks + config to ~/.claude-alertr/
-├── uninstall.sh           # Removes hooks + config (preserves other hooks)
-├── wrangler.toml          # Cloudflare Worker configuration
-├── tsconfig.json          # TypeScript config
-└── package.json           # Dependencies (wrangler, vitest, typescript)
+│   ├── index.ts               # Worker entry — routing, auth, rate limiting, dispatch
+│   ├── index.test.ts          # Vitest test suite (16 tests)
+│   └── setup-page.ts          # Self-contained HTML/CSS/JS setup wizard
+├── install.sh                 # Manual installer (copies hooks + creates config)
+├── uninstall.sh               # Removes hooks + config (preserves other hooks)
+├── wrangler.toml              # Cloudflare Worker configuration
+├── tsconfig.json              # TypeScript config
+└── package.json               # Dependencies (wrangler, vitest, typescript)
 ```
 
 ### Security Model
@@ -143,6 +151,25 @@ Request ──► AUTH_TOKEN set? ──► No ──► 503 (fail-closed)
 - All user-controlled values in email HTML are escaped via `escapeHtml()`
 - Shell hooks sanitize `session_id` to `[a-zA-Z0-9_-]` before use in file paths
 - Config is read via `grep`/`cut` (never `source`) to prevent code injection
+
+## Install via Plugin Marketplace (Recommended)
+
+If you're using Claude Code with plugin marketplace support, this is the easiest way to install:
+
+```bash
+# 1. Add the marketplace
+/plugin marketplace add xxdesmus/claude-alertr
+
+# 2. Install the idle-alert plugin
+/plugin install idle-alert@xxdesmus-claude-alertr
+
+# 3. Run the setup wizard
+/idle-alert:setup
+```
+
+The `/idle-alert:setup` skill walks you through configuring your Worker URL, auth token, and alert delay — then tests the connection. Hooks are auto-registered; no manual `settings.json` editing needed.
+
+You still need to deploy the Cloudflare Worker separately (see [Deploy the Worker](#2-deploy-the-worker) below).
 
 ## Prerequisites
 

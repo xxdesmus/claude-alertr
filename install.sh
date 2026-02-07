@@ -13,11 +13,16 @@ CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 
 echo "=== claude-alertr installer ==="
 echo ""
+echo "Tip: You can also install via the Claude Code plugin marketplace:"
+echo "  /plugin marketplace add xxdesmus/claude-alertr"
+echo "  /plugin install idle-alert@xxdesmus-claude-alertr"
+echo "  /idle-alert:setup"
+echo ""
 
 # --- Install hooks ---
 mkdir -p "$HOOKS_DIR"
-cp "$SCRIPT_DIR/hooks/idle-alert.sh" "$HOOKS_DIR/idle-alert.sh"
-cp "$SCRIPT_DIR/hooks/dismiss-alert.sh" "$HOOKS_DIR/dismiss-alert.sh"
+cp "$SCRIPT_DIR/plugins/idle-alert/hooks/idle-alert.sh" "$HOOKS_DIR/idle-alert.sh"
+cp "$SCRIPT_DIR/plugins/idle-alert/hooks/dismiss-alert.sh" "$HOOKS_DIR/dismiss-alert.sh"
 chmod +x "$HOOKS_DIR/idle-alert.sh" "$HOOKS_DIR/dismiss-alert.sh"
 echo "Hooks installed to $HOOKS_DIR"
 

@@ -1,0 +1,9 @@
+{
+  "name": "idle-alert",
+  "version": "1.0.0",
+  "description": "Get notified when Claude Code is waiting for your input",
+  "author": "xxdesmus",
+  "license": "MIT",
+  "homepage": "https://github.com/xxdesmus/claude-alertr",
+  "repository": "https://github.com/xxdesmus/claude-alertr"
+}
