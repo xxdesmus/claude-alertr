@@ -12,9 +12,9 @@ INPUT=$(cat)
 NOTIF_TYPE=$(echo "$INPUT" | jq -r '.notification_type // empty')
 SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' | tr -cd 'a-zA-Z0-9_-')
 
-# Only act on notifications that indicate Claude is waiting for input
+# Only act on notifications where Claude is genuinely blocked waiting for user action
 case "$NOTIF_TYPE" in
-  idle_prompt|permission_prompt|elicitation_dialog) ;;
+  permission_prompt|elicitation_dialog) ;;
   *) exit 0 ;;
 esac
 

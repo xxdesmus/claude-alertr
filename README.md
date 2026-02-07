@@ -280,9 +280,10 @@ The `text` field is compatible with Slack and Discord incoming webhooks.
 
 | Type | When it fires |
 |------|---------------|
-| `idle_prompt` | Claude finished and is waiting for your next prompt |
 | `permission_prompt` | Claude needs permission to run a tool |
 | `elicitation_dialog` | Claude is asking you a question |
+
+> **Note:** `idle_prompt` (Claude finished and is waiting for your next prompt) is intentionally excluded — it fires after every completed response, which causes false alerts when a task is simply done.
 
 ## Uninstall
 
