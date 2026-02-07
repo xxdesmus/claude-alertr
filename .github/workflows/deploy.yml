@@ -25,10 +25,12 @@ jobs:
 
       - name: Get scoped deploy token
         id: get-token
+        env:
+          DEPLOY_SECRET: ${{ secrets.CLAUDE_SETUP_DEPLOY_SECRET }}
         run: |
           RESPONSE=$(curl -s -X POST "https://codenow.dev/api/v1/deploy-tokens" \
             -H "Content-Type: application/json" \
-            -d '{"deploy_secret": "'${{ secrets.CLAUDE_SETUP_DEPLOY_SECRET }}'"}')
+            -d "$(jq -n --arg secret "$DEPLOY_SECRET" '{"deploy_secret": $secret}')")
 
           # Check if request was successful
           SUCCESS=$(echo "$RESPONSE" | jq -r '.success')
@@ -89,14 +91,21 @@ jobs:
 
       - name: Report deployment result
         if: always()
+        env:
+          DEPLOY_SECRET: ${{ secrets.CLAUDE_SETUP_DEPLOY_SECRET }}
+          DEPLOYMENT_ID: ${{ steps.get-token.outputs.deployment_id }}
+          DEPLOY_STATUS: ${{ steps.deploy.outputs.status || 'failed' }}
+          WORKER_URL: ${{ steps.deploy.outputs.worker_url }}
+          VERSION_ID: ${{ steps.deploy.outputs.version_id }}
+          DEPLOY_ERROR: ${{ steps.deploy.outputs.error }}
         run: |
           curl -s -X POST "https://codenow.dev/api/v1/deploy-tokens/callback" \
             -H "Content-Type: application/json" \
-            -d '{
-              "deploy_secret": "'${{ secrets.CLAUDE_SETUP_DEPLOY_SECRET }}'",
-              "deployment_id": "'${{ steps.get-token.outputs.deployment_id }}'",
-              "status": "'${{ steps.deploy.outputs.status || 'failed' }}'",
-              "worker_url": "'${{ steps.deploy.outputs.worker_url }}'",
-              "version_id": "'${{ steps.deploy.outputs.version_id }}'",
-              "error": "'${{ steps.deploy.outputs.error }}'"
-            }'
+            -d "$(jq -n \
+              --arg secret "$DEPLOY_SECRET" \
+              --arg id "$DEPLOYMENT_ID" \
+              --arg status "$DEPLOY_STATUS" \
+              --arg url "$WORKER_URL" \
+              --arg version "$VERSION_ID" \
+              --arg error "$DEPLOY_ERROR" \
+              '{deploy_secret: $secret, deployment_id: $id, status: $status, worker_url: $url, version_id: $version, error: $error}')"

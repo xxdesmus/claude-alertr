@@ -11,16 +11,19 @@ CLAUDE_SETTINGS="$HOME/.claude/settings.json"
 echo "=== claude-alertr uninstaller ==="
 echo ""
 
-# --- Remove hooks from Claude Code settings ---
+# --- Remove only claude-alertr hooks from Claude Code settings ---
 if [ -f "$CLAUDE_SETTINGS" ]; then
   UPDATED=$(jq '
     if .hooks then
-      .hooks |= del(.Notification) | del(.UserPromptSubmit)
+      .hooks.Notification = [(.hooks.Notification // [])[] | select((.hooks[0].command // "") | test("claude-alertr") | not)] |
+      .hooks.UserPromptSubmit = [(.hooks.UserPromptSubmit // [])[] | select((.hooks[0].command // "") | test("claude-alertr") | not)] |
+      if .hooks.Notification == [] then del(.hooks.Notification) else . end |
+      if .hooks.UserPromptSubmit == [] then del(.hooks.UserPromptSubmit) else . end |
+      if .hooks == {} then del(.hooks) else . end
     else . end
-    | if .hooks == {} then del(.hooks) else . end
   ' "$CLAUDE_SETTINGS")
   echo "$UPDATED" | jq '.' > "$CLAUDE_SETTINGS"
-  echo "Removed hooks from $CLAUDE_SETTINGS"
+  echo "Removed claude-alertr hooks from $CLAUDE_SETTINGS"
 else
   echo "No Claude settings found at $CLAUDE_SETTINGS"
 fi

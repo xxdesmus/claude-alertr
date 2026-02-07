@@ -34,8 +34,12 @@ if [ ! -f "$CONFIG_FILE" ]; then
     exit 1
   fi
 
-  # Auth token (optional)
-  read -rp "Enter your AUTH_TOKEN (leave blank if none): " auth_token
+  # Auth token (required)
+  read -rp "Enter your AUTH_TOKEN (must match the Worker secret): " auth_token
+  if [ -z "$auth_token" ]; then
+    echo "Error: AUTH_TOKEN is required. Set one on the Worker with: wrangler secret put AUTH_TOKEN"
+    exit 1
+  fi
 
   # Alert delay
   read -rp "Alert delay in seconds [60]: " delay
@@ -48,7 +52,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
 # URL of your deployed claude-alertr Cloudflare Worker
 CLAUDE_ALERTR_URL="$worker_url"
 
-# Auth token (must match AUTH_TOKEN secret on the Worker). Leave empty if not set.
+# Auth token (must match AUTH_TOKEN secret on the Worker)
 CLAUDE_ALERTR_TOKEN="$auth_token"
 
 # Seconds to wait before sending an alert (default: 60)
@@ -61,7 +65,7 @@ else
   echo "Config already exists at $CONFIG_FILE — skipping."
 fi
 
-# --- Update Claude Code global settings ---
+# --- Update Claude Code global settings (merge, don't overwrite) ---
 echo ""
 echo "Configuring Claude Code hooks..."
 
@@ -73,12 +77,16 @@ else
   EXISTING="{}"
 fi
 
-# Build the hooks configuration using jq
+# Merge hooks into existing configuration, preserving other hooks.
+# First removes any existing claude-alertr entries, then appends ours.
 UPDATED=$(echo "$EXISTING" | jq \
   --arg idle_hook "$HOOKS_DIR/idle-alert.sh" \
   --arg dismiss_hook "$HOOKS_DIR/dismiss-alert.sh" \
   '
-  .hooks.Notification = [
+  .hooks //= {} |
+  .hooks.Notification //= [] |
+  .hooks.UserPromptSubmit //= [] |
+  .hooks.Notification = [.hooks.Notification[] | select((.hooks[0].command // "") | test("claude-alertr") | not)] + [
     {
       "matcher": "",
       "hooks": [
@@ -89,9 +97,8 @@ UPDATED=$(echo "$EXISTING" | jq \
         }
       ]
     }
-  ]
-  |
-  .hooks.UserPromptSubmit = [
+  ] |
+  .hooks.UserPromptSubmit = [.hooks.UserPromptSubmit[] | select((.hooks[0].command // "") | test("claude-alertr") | not)] + [
     {
       "matcher": "",
       "hooks": [
@@ -113,8 +120,9 @@ echo "=== Installation complete ==="
 echo ""
 echo "Next steps:"
 echo "  1. Deploy the Worker:  cd $(printf '%q' "$SCRIPT_DIR") && npm run deploy"
-echo "  2. Set Worker secrets: wrangler secret put WEBHOOK_URL"
+echo "  2. Set Worker secrets: wrangler secret put AUTH_TOKEN"
+echo "     Then: wrangler secret put WEBHOOK_URL"
 echo "     (and/or RESEND_API_KEY, ALERT_EMAIL_TO for email)"
-echo "  3. Test it:            curl -X POST https://your-worker.workers.dev/test"
+echo "  3. Test it:            curl -X POST -H 'Authorization: Bearer <TOKEN>' https://your-worker.workers.dev/test"
 echo ""
 echo "To uninstall, run: $(printf '%q' "$SCRIPT_DIR")/uninstall.sh"

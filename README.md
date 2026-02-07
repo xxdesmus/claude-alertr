@@ -49,7 +49,16 @@ npm run deploy
 
 Note the URL printed (e.g., `https://claude-alertr.<you>.workers.dev`).
 
-### 3. Configure notification channels
+### 3. Set the auth token
+
+An auth token is **required** to protect your Worker from unauthorized use:
+
+```bash
+npx wrangler secret put AUTH_TOKEN
+# Choose a strong random token. The hook scripts will send it as a Bearer token.
+```
+
+### 4. Configure notification channels
 
 Set at least one of these:
 
@@ -67,13 +76,7 @@ npx wrangler secret put ALERT_EMAIL_TO
 npx wrangler secret put ALERT_EMAIL_FROM
 ```
 
-**(Optional) Secure the endpoint:**
-```bash
-npx wrangler secret put AUTH_TOKEN
-# Choose a random token. The hook scripts will send it as a Bearer token.
-```
-
-### 4. Install hooks into Claude Code
+### 5. Install hooks into Claude Code
 
 ```bash
 ./install.sh
@@ -82,12 +85,14 @@ npx wrangler secret put AUTH_TOKEN
 The installer will:
 - Copy hook scripts to `~/.claude-alertr/hooks/`
 - Prompt you for your Worker URL and auth token
-- Add hooks to your global Claude Code settings (`~/.claude/settings.json`)
+- Merge hooks into your global Claude Code settings (`~/.claude/settings.json`), preserving any existing hooks
 
-### 5. Test it
+### 6. Test it
 
 ```bash
-curl -X POST https://claude-alertr.<you>.workers.dev/test
+curl -X POST \
+  -H "Authorization: Bearer <YOUR_AUTH_TOKEN>" \
+  https://claude-alertr.<you>.workers.dev/test
 # You should receive a webhook/email within seconds
 ```
 
@@ -98,7 +103,7 @@ All local configuration lives in `~/.claude-alertr/config`:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `CLAUDE_ALERTR_URL` | Your deployed Worker URL | (required) |
-| `CLAUDE_ALERTR_TOKEN` | Bearer token for authentication | (empty) |
+| `CLAUDE_ALERTR_TOKEN` | Bearer token for authentication | (required) |
 | `CLAUDE_ALERTR_DELAY` | Seconds to wait before alerting | `60` |
 
 Edit it directly:
@@ -108,11 +113,13 @@ nano ~/.claude-alertr/config
 
 ## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/` | Health check — shows status and configured channels |
-| `POST` | `/alert` | Receive an alert and forward to configured channels |
-| `POST` | `/test` | Send a test notification through all configured channels |
+All `POST` endpoints require a `Authorization: Bearer <TOKEN>` header.
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/` | No | Health check — returns service status |
+| `POST` | `/alert` | Yes | Receive an alert and forward to configured channels |
+| `POST` | `/test` | Yes | Send a test notification through all configured channels |
 
 ### Alert payload format
 
@@ -158,7 +165,7 @@ The `text` field is compatible with Slack and Discord incoming webhooks.
 ./uninstall.sh
 ```
 
-This removes the hooks from Claude Code settings and deletes `~/.claude-alertr/`. To also remove the Worker:
+This removes only the claude-alertr hooks from Claude Code settings (preserving other hooks) and deletes `~/.claude-alertr/`. To also remove the Worker:
 
 ```bash
 npx wrangler delete claude-alertr
@@ -167,9 +174,11 @@ npx wrangler delete claude-alertr
 ## Development
 
 ```bash
-npm run dev     # Start local dev server
-npm run test    # Run tests
-npm run deploy  # Deploy to Cloudflare
+npm run dev          # Start local dev server
+npx vitest run       # Run tests once
+npx vitest           # Run tests in watch mode
+npx tsc --noEmit     # Type check
+npm run deploy       # Deploy to Cloudflare
 ```
 
 ## License

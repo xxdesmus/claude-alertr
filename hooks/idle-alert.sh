@@ -10,7 +10,7 @@ set -euo pipefail
 INPUT=$(cat)
 
 NOTIF_TYPE=$(echo "$INPUT" | jq -r '.notification_type // empty')
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' | tr -cd 'a-zA-Z0-9_-')
 
 # Only act on notifications that indicate Claude is waiting for input
 case "$NOTIF_TYPE" in
@@ -22,17 +22,16 @@ if [ -z "$SESSION_ID" ]; then
   exit 0
 fi
 
-# Load config
+# Load config (safe key-value parsing, no arbitrary code execution)
 CONFIG_FILE="$HOME/.claude-alertr/config"
 if [ ! -f "$CONFIG_FILE" ]; then
   exit 0
 fi
-# shellcheck source=/dev/null
-source "$CONFIG_FILE"
 
-ALERTR_URL="${CLAUDE_ALERTR_URL:-}"
-ALERTR_TOKEN="${CLAUDE_ALERTR_TOKEN:-}"
-ALERT_DELAY="${CLAUDE_ALERTR_DELAY:-60}"
+ALERTR_URL=$(grep -E '^CLAUDE_ALERTR_URL=' "$CONFIG_FILE" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+ALERTR_TOKEN=$(grep -E '^CLAUDE_ALERTR_TOKEN=' "$CONFIG_FILE" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+ALERT_DELAY=$(grep -E '^CLAUDE_ALERTR_DELAY=' "$CONFIG_FILE" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+ALERT_DELAY="${ALERT_DELAY:-60}"
 
 if [ -z "$ALERTR_URL" ]; then
   exit 0

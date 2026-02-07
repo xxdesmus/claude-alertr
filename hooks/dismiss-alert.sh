@@ -8,7 +8,7 @@ set -euo pipefail
 # Read hook input from stdin
 INPUT=$(cat)
 
-SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty')
+SESSION_ID=$(echo "$INPUT" | jq -r '.session_id // empty' | tr -cd 'a-zA-Z0-9_-')
 
 if [ -z "$SESSION_ID" ]; then
   exit 0
