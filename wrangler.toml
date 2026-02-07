@@ -8,4 +8,4 @@ compatibility_flags = ["nodejs_compat"]
 #   RESEND_API_KEY   - Resend API key for email notifications
 #   ALERT_EMAIL_TO   - Recipient email address
 #   ALERT_EMAIL_FROM - Sender address (default: "Claude Alertr <alerts@resend.dev>")
-#   AUTH_TOKEN        - Bearer token to authenticate hook requests (optional)
+#   AUTH_TOKEN        - Bearer token to authenticate hook requests (required)

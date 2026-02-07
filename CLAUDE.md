@@ -18,7 +18,9 @@ Worker secrets are managed via `wrangler secret put <NAME>` (AUTH_TOKEN, WEBHOOK
 
 This is a two-component system that alerts users when Claude Code is idle:
 
-**Cloudflare Worker** (`src/index.ts`) — A single-file TypeScript Worker that receives alert payloads and forwards them to webhook URLs (Slack/Discord) and/or email (via Resend API). All source code lives in `src/index.ts` with tests alongside in `src/index.test.ts`. Routes: `GET /` (health), `POST /alert` (forward notification), `POST /test` (send test alert).
+**Cloudflare Worker** (`src/index.ts`) — The main Worker that receives alert payloads and forwards them to webhook URLs (Slack/Discord) and/or email (via Resend API). Tests alongside in `src/index.test.ts`. Routes: `GET /` (health), `GET /setup` (setup wizard), `POST /alert` (forward notification), `POST /test` (send test alert).
+
+**Setup wizard** (`src/setup-page.ts`) — A self-contained HTML/CSS/JS page served at `/setup`. No framework or build step — just a template literal returning the full page. The wizard guides users through connection testing, delay configuration, and install command generation.
 
 **Local shell hooks** (`hooks/`) — Two bash scripts installed into Claude Code's hook system:
 - `idle-alert.sh` runs on `Notification` events. It starts a background `sleep` timer; if the user doesn't respond within the delay (default 60s), it POSTs to the Worker's `/alert` endpoint.

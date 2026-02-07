@@ -1,3 +1,5 @@
+import { getSetupPageHtml } from './setup-page';
+
 export interface Env {
   WEBHOOK_URL?: string;
   RESEND_API_KEY?: string;
@@ -246,6 +248,15 @@ export default {
 
     if (url.pathname === '/' && request.method === 'GET') {
       return jsonResponse({ service: 'claude-alertr', status: 'ok' });
+    }
+
+    if (url.pathname === '/setup' && request.method === 'GET') {
+      return new Response(getSetupPageHtml(), {
+        headers: {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Content-Security-Policy': "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'",
+        },
+      });
     }
 
     // Rate limit mutation endpoints

@@ -49,6 +49,8 @@ npm run deploy
 
 Note the URL printed (e.g., `https://claude-alertr.<you>.workers.dev`).
 
+> **Tip:** After deploying, visit `https://claude-alertr.<you>.workers.dev/setup` for a guided setup wizard that walks you through the remaining steps.
+
 ### 3. Set the auth token
 
 An auth token is **required** to protect your Worker from unauthorized use:
@@ -118,6 +120,7 @@ All `POST` endpoints require a `Authorization: Bearer <TOKEN>` header.
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
 | `GET` | `/` | No | Health check — returns service status |
+| `GET` | `/setup` | No | Interactive setup wizard |
 | `POST` | `/alert` | Yes | Receive an alert and forward to configured channels |
 | `POST` | `/test` | Yes | Send a test notification through all configured channels |
 

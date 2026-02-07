@@ -195,6 +195,25 @@ describe('claude-alertr worker', () => {
     });
   });
 
+  describe('GET /setup', () => {
+    it('returns the setup wizard HTML page', async () => {
+      const res = await worker.fetch(makeRequest('/setup'), env, ctx);
+      expect(res.status).toBe(200);
+      expect(res.headers.get('Content-Type')).toContain('text/html');
+      expect(res.headers.get('Content-Security-Policy')).toBeTruthy();
+      const body = await res.text();
+      expect(body).toContain('claude-alertr');
+      expect(body).toContain('Connect to Your Worker');
+    });
+
+    it('is not rate limited', async () => {
+      for (let i = 0; i < 15; i++) {
+        const res = await worker.fetch(makeRequest('/setup'), env, ctx);
+        expect(res.status).toBe(200);
+      }
+    });
+  });
+
   describe('404', () => {
     it('returns 404 for unknown paths', async () => {
       const res = await worker.fetch(makeRequest('/unknown'), env, ctx);
