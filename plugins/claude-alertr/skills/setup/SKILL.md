@@ -1,4 +1,4 @@
-# /idle-alert:setup
+# /claude-alertr:setup
 
 Walk the user through configuring claude-alertr. This skill replaces the interactive prompts from `install.sh`.
 
@@ -54,4 +54,4 @@ Tell the user:
 - claude-alertr is configured and will alert them after **{delay}** seconds of inactivity
 - Config is stored at `~/.claude-alertr/config`
 - The plugin hooks are automatically registered — no manual `settings.json` editing needed
-- To change settings later, edit `~/.claude-alertr/config` or run `/idle-alert:setup` again
+- To change settings later, edit `~/.claude-alertr/config` or run `/claude-alertr:setup` again

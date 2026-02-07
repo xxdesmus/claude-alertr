@@ -7,8 +7,8 @@
   },
   "plugins": [
     {
-      "name": "idle-alert",
-      "source": "./plugins/idle-alert",
+      "name": "claude-alertr",
+      "source": "./plugins/claude-alertr",
       "description": "Monitors Claude Code for idle states and sends alerts after a configurable delay",
       "category": "productivity",
       "tags": ["notifications", "alerts", "slack", "discord", "email", "hooks"]

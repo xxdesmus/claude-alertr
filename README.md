@@ -113,7 +113,7 @@ User responds? ──► Dismiss hook cancels timer               │
 claude-alertr/
 ├── .claude-plugin/
 │   └── marketplace.json       # Plugin marketplace catalog
-├── plugins/idle-alert/
+├── plugins/claude-alertr/
 │   ├── .claude-plugin/
 │   │   └── plugin.json        # Plugin manifest (name, version, metadata)
 │   ├── hooks/
@@ -121,7 +121,7 @@ claude-alertr/
 │   │   ├── idle-alert.sh      # Notification hook — starts alert timer
 │   │   └── dismiss-alert.sh   # UserPromptSubmit hook — cancels timer
 │   └── skills/setup/
-│       └── SKILL.md           # /idle-alert:setup slash command
+│       └── SKILL.md           # /claude-alertr:setup slash command
 ├── src/
 │   ├── index.ts               # Worker entry — routing, auth, rate limiting, dispatch
 │   ├── index.test.ts          # Vitest test suite (16 tests)
@@ -160,14 +160,14 @@ If you're using Claude Code with plugin marketplace support, this is the easiest
 # 1. Add the marketplace
 /plugin marketplace add xxdesmus/claude-alertr
 
-# 2. Install the idle-alert plugin
-/plugin install idle-alert@xxdesmus-claude-alertr
+# 2. Install the claude-alertr plugin
+/plugin install claude-alertr@xxdesmus-claude-alertr
 
 # 3. Run the setup wizard
-/idle-alert:setup
+/claude-alertr:setup
 ```
 
-The `/idle-alert:setup` skill walks you through configuring your Worker URL, auth token, and alert delay — then tests the connection. Hooks are auto-registered; no manual `settings.json` editing needed.
+The `/claude-alertr:setup` skill walks you through configuring your Worker URL, auth token, and alert delay — then tests the connection. Hooks are auto-registered; no manual `settings.json` editing needed.
 
 You still need to deploy the Cloudflare Worker separately (see [Deploy the Worker](#2-deploy-the-worker) below).
 

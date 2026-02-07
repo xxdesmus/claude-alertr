@@ -281,9 +281,9 @@ function genCmds(){
 'chmod 600 ~/.claude-alertr/config\\n'+
 '\\n'+
 '# Download hooks\\n'+
-'curl -fsSL https://raw.githubusercontent.com/xxdesmus/claude-alertr/main/plugins/idle-alert/hooks/idle-alert.sh \\\\\\n'+
+'curl -fsSL https://raw.githubusercontent.com/xxdesmus/claude-alertr/main/plugins/claude-alertr/hooks/idle-alert.sh \\\\\\n'+
 '  -o ~/.claude-alertr/hooks/idle-alert.sh\\n'+
-'curl -fsSL https://raw.githubusercontent.com/xxdesmus/claude-alertr/main/plugins/idle-alert/hooks/dismiss-alert.sh \\\\\\n'+
+'curl -fsSL https://raw.githubusercontent.com/xxdesmus/claude-alertr/main/plugins/claude-alertr/hooks/dismiss-alert.sh \\\\\\n'+
 '  -o ~/.claude-alertr/hooks/dismiss-alert.sh\\n'+
 'chmod +x ~/.claude-alertr/hooks/*.sh\\n'+
 '\\n'+

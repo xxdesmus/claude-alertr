@@ -29,7 +29,7 @@ This is a two-component system that alerts users when Claude Code is idle:
 
 **Setup wizard** (`src/setup-page.ts`) — A self-contained HTML/CSS/JS page served at `/setup`. No framework or build step — just a template literal returning the full page. The wizard guides users through connection testing, delay configuration, and install command generation.
 
-**Local shell hooks** (`plugins/idle-alert/hooks/`) — Two bash scripts installed into Claude Code's hook system:
+**Local shell hooks** (`plugins/claude-alertr/hooks/`) — Two bash scripts installed into Claude Code's hook system:
 - `idle-alert.sh` runs on `Notification` events, but only for `permission_prompt` and `elicitation_dialog` (not `idle_prompt`). It extracts the pending tool call or question from the session transcript, starts a background `sleep` timer, and if the user doesn't respond within the delay (default 60s), POSTs to the Worker's `/alert` endpoint with a `details` field describing what Claude is waiting on.
 - `dismiss-alert.sh` runs on `UserPromptSubmit` events. It kills the pending timer and removes the marker file.
 
@@ -37,14 +37,14 @@ The hooks communicate via files in `/tmp/claude-alertr/` (one file per session_i
 
 ## Plugin Structure
 
-This repo doubles as a Claude Code plugin marketplace. The marketplace catalog lives at `.claude-plugin/marketplace.json` (repo root), and the plugin itself lives under `plugins/idle-alert/`:
+This repo doubles as a Claude Code plugin marketplace. The marketplace catalog lives at `.claude-plugin/marketplace.json` (repo root), and the plugin itself lives under `plugins/claude-alertr/`:
 
 - `.claude-plugin/plugin.json` — Plugin manifest (name, version, author, license)
 - `hooks/hooks.json` — Auto-registers both hooks using `${CLAUDE_PLUGIN_ROOT}` variable
 - `hooks/idle-alert.sh`, `hooks/dismiss-alert.sh` — The actual hook scripts
-- `skills/setup/SKILL.md` — The `/idle-alert:setup` slash command that guides config creation
+- `skills/setup/SKILL.md` — The `/claude-alertr:setup` slash command that guides config creation
 
-Users install via: `/plugin marketplace add xxdesmus/claude-alertr` then `/plugin install idle-alert@xxdesmus-claude-alertr`. The plugin only handles client-side hooks — the Cloudflare Worker is deployed separately.
+Users install via: `/plugin marketplace add xxdesmus/claude-alertr` then `/plugin install claude-alertr@xxdesmus-claude-alertr`. The plugin only handles client-side hooks — the Cloudflare Worker is deployed separately.
 
 ## Security Conventions
 
