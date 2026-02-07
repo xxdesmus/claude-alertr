@@ -251,13 +251,16 @@ All `POST` endpoints require a `Authorization: Bearer <TOKEN>` header.
 ```json
 {
   "session_id": "abc123",
-  "notification_type": "idle_prompt",
-  "message": "Claude needs your attention",
+  "notification_type": "permission_prompt",
+  "message": "Claude needs your permission to use Bash",
   "title": "Permission needed",
+  "details": "Pull latest changes from GitHub: git pull",
   "cwd": "/path/to/project",
   "timestamp": "2025-01-15T10:30:00Z"
 }
 ```
+
+The `details` field is automatically extracted from the session transcript by the hook — it contains the specific tool call or question Claude is waiting on.
 
 ### Webhook output format
 
@@ -265,16 +268,17 @@ The Worker forwards alerts as a JSON POST:
 
 ```json
 {
-  "text": "Claude Code is waiting for your input (idle_prompt)",
+  "text": "Claude Code is waiting for your input (permission_prompt)\nPull latest changes from GitHub: git pull",
   "session_id": "abc123",
-  "notification_type": "idle_prompt",
-  "message": "Claude needs your attention",
+  "notification_type": "permission_prompt",
+  "message": "Claude needs your permission to use Bash",
+  "details": "Pull latest changes from GitHub: git pull",
   "project": "/path/to/project",
   "waiting_since": "2025-01-15T10:30:00Z"
 }
 ```
 
-The `text` field is compatible with Slack and Discord incoming webhooks.
+The `text` field is compatible with Slack and Discord incoming webhooks. When `details` is present, it is appended to `text` so webhook services display the context inline.
 
 ## Notification Types
 

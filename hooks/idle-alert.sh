@@ -50,8 +50,36 @@ if [ -f "$PID_FILE" ]; then
   fi
 fi
 
-# Write the notification data with a timestamp
-echo "$INPUT" | jq --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" '. + {timestamp: $ts}' > "$ALERT_FILE"
+# Extract details from the transcript (what Claude is actually asking)
+DETAILS=""
+TRANSCRIPT=$(echo "$INPUT" | jq -r '.transcript_path // empty')
+if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
+  LAST_TOOL=$(tail -20 "$TRANSCRIPT" | jq -s '[.[] | select(.type == "assistant") | .message.content[]? | select(.type == "tool_use")] | last' 2>/dev/null || true)
+  if [ -n "$LAST_TOOL" ] && [ "$LAST_TOOL" != "null" ]; then
+    TOOL_NAME=$(echo "$LAST_TOOL" | jq -r '.name // empty')
+    case "$TOOL_NAME" in
+      Bash)
+        CMD=$(echo "$LAST_TOOL" | jq -r '.input.command // empty')
+        DESC=$(echo "$LAST_TOOL" | jq -r '.input.description // empty')
+        [ -n "$DESC" ] && DETAILS="$DESC: $CMD" || DETAILS="$CMD"
+        ;;
+      AskUserQuestion)
+        DETAILS=$(echo "$LAST_TOOL" | jq -r '.input.questions[0].question // empty')
+        ;;
+      Edit|Write)
+        FPATH=$(echo "$LAST_TOOL" | jq -r '.input.file_path // empty')
+        DETAILS="$TOOL_NAME: $FPATH"
+        ;;
+      *)
+        DESC=$(echo "$LAST_TOOL" | jq -r '.input.description // .input.command // .input.file_path // empty')
+        [ -n "$DESC" ] && DETAILS="$TOOL_NAME: $DESC" || DETAILS="$TOOL_NAME"
+        ;;
+    esac
+  fi
+fi
+
+# Write the notification data with a timestamp and details
+echo "$INPUT" | jq --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --arg details "$DETAILS" '. + {timestamp: $ts, details: $details}' > "$ALERT_FILE"
 
 # Spawn background timer process
 (

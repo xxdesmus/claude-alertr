@@ -15,6 +15,7 @@ interface AlertPayload {
   title?: string;
   cwd?: string;
   timestamp?: string;
+  details?: string;
 }
 
 // --- Rate limiting (per-isolate, best-effort) ---
@@ -100,10 +101,13 @@ async function sendWebhook(url: string, payload: AlertPayload): Promise<boolean>
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        text: `Claude Code is waiting for your input (${payload.notification_type})`,
+        text: payload.details
+          ? `Claude Code is waiting for your input (${payload.notification_type})\n${payload.details}`
+          : `Claude Code is waiting for your input (${payload.notification_type})`,
         session_id: payload.session_id,
         notification_type: payload.notification_type,
         message: payload.message || '',
+        details: payload.details || '',
         project: payload.cwd || '',
         waiting_since: payload.timestamp || '',
       }),
@@ -124,6 +128,7 @@ async function sendEmail(
     const projectName = escapeHtml(payload.cwd ? payload.cwd.split('/').pop() || 'unknown' : 'unknown');
     const safeType = escapeHtml(payload.notification_type);
     const safeMessage = payload.message ? escapeHtml(payload.message) : '';
+    const safeDetails = payload.details ? escapeHtml(payload.details) : '';
     const safeCwd = escapeHtml(payload.cwd || 'unknown');
     const safeSessionId = escapeHtml(payload.session_id);
     const safeTimestamp = escapeHtml(payload.timestamp || 'unknown');
@@ -145,6 +150,9 @@ async function sendEmail(
           `<tr><td style="padding: 8px; font-weight: bold;">Type</td><td style="padding: 8px;">${safeType}</td></tr>`,
           safeMessage
             ? `<tr><td style="padding: 8px; font-weight: bold;">Message</td><td style="padding: 8px;">${safeMessage}</td></tr>`
+            : '',
+          safeDetails
+            ? `<tr><td style="padding: 8px; font-weight: bold;">Details</td><td style="padding: 8px;"><code>${safeDetails}</code></td></tr>`
             : '',
           `<tr><td style="padding: 8px; font-weight: bold;">Project</td><td style="padding: 8px;">${safeCwd}</td></tr>`,
           `<tr><td style="padding: 8px; font-weight: bold;">Session</td><td style="padding: 8px;"><code>${safeSessionId}</code></td></tr>`,
@@ -212,6 +220,7 @@ async function handleTest(request: Request, env: Env): Promise<Response> {
     notification_type: 'test',
     message: 'This is a test alert from claude-alertr',
     title: 'Test Alert',
+    details: 'Bash: git push — Push commits to remote',
     cwd: '/example/project',
     timestamp: new Date().toISOString(),
   };
