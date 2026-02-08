@@ -4,18 +4,9 @@
 // as native TypeScript fetch() calls, so the Cloudflare Worker can dispatch to
 // any supported service without a Go binary or sidecar.
 
-// --- Types ---
+import type { AlertPayload } from './index';
 
-export interface ShoutrrrPayload {
-  session_id: string;
-  notification_type: string;
-  message?: string;
-  title?: string;
-  cwd?: string;
-  timestamp?: string;
-  details?: string;
-  hostname?: string;
-}
+// --- Types ---
 
 export interface ShoutrrrResult {
   service: string;
@@ -62,10 +53,12 @@ export function parseUrl(raw: string): ParsedUrl | null {
     }
   }
 
-  // Extract userinfo (everything before the last @)
+  // Extract userinfo (everything before the last @ that precedes the first /)
   let user = '';
   let password = '';
-  const atIdx = rest.indexOf('@');
+  const slashBoundary = rest.indexOf('/');
+  const authority = slashBoundary !== -1 ? rest.slice(0, slashBoundary) : rest;
+  const atIdx = authority.lastIndexOf('@');
   if (atIdx !== -1) {
     const userinfo = rest.slice(0, atIdx);
     rest = rest.slice(atIdx + 1);
@@ -103,7 +96,7 @@ export function parseShoutrrrUrls(input: string): string[] {
 
 // --- Message formatting ---
 
-function formatMessage(payload: ShoutrrrPayload): { title: string; body: string } {
+function formatMessage(payload: AlertPayload): { title: string; body: string } {
   const project = payload.cwd ? payload.cwd.split('/').pop() || 'unknown' : 'unknown';
 
   const title = payload.hostname
@@ -124,7 +117,7 @@ function formatMessage(payload: ShoutrrrPayload): { title: string; body: string 
 
 // --- Service adapters ---
 
-async function sendSlack(parsed: ParsedUrl, payload: ShoutrrrPayload): Promise<boolean> {
+async function sendSlack(parsed: ParsedUrl, payload: AlertPayload): Promise<boolean> {
   // slack://[botname@]token-a/token-b/token-c
   const tokenA = parsed.host;
   if (!tokenA || !parsed.path) return false;
@@ -140,7 +133,7 @@ async function sendSlack(parsed: ParsedUrl, payload: ShoutrrrPayload): Promise<b
   return response.ok;
 }
 
-async function sendDiscord(parsed: ParsedUrl, payload: ShoutrrrPayload): Promise<boolean> {
+async function sendDiscord(parsed: ParsedUrl, payload: AlertPayload): Promise<boolean> {
   // discord://token@id
   const webhookId = parsed.host;
   const token = parsed.user;
@@ -157,7 +150,7 @@ async function sendDiscord(parsed: ParsedUrl, payload: ShoutrrrPayload): Promise
   return response.ok;
 }
 
-async function sendTelegram(parsed: ParsedUrl, payload: ShoutrrrPayload): Promise<boolean> {
+async function sendTelegram(parsed: ParsedUrl, payload: AlertPayload): Promise<boolean> {
   // telegram://bottoken@telegram?chats=chatId1,chatId2
   // Bot tokens contain a colon (e.g. 123456:ABC-DEF), so reconstruct from user:password
   const token = parsed.password ? `${parsed.user}:${parsed.password}` : parsed.user;
@@ -177,7 +170,7 @@ async function sendTelegram(parsed: ParsedUrl, payload: ShoutrrrPayload): Promis
   return results.every((r) => r.status === 'fulfilled' && r.value.ok);
 }
 
-async function sendNtfy(parsed: ParsedUrl, payload: ShoutrrrPayload): Promise<boolean> {
+async function sendNtfy(parsed: ParsedUrl, payload: AlertPayload): Promise<boolean> {
   // ntfy://[user:pass@]host[:port]/topic
   const topic = parsed.path.split('/').filter(Boolean)[0];
   if (!parsed.host || !topic) return false;
@@ -195,7 +188,7 @@ async function sendNtfy(parsed: ParsedUrl, payload: ShoutrrrPayload): Promise<bo
   return response.ok;
 }
 
-async function sendPushover(parsed: ParsedUrl, payload: ShoutrrrPayload): Promise<boolean> {
+async function sendPushover(parsed: ParsedUrl, payload: AlertPayload): Promise<boolean> {
   // pushover://shoutrrr:apiToken@userKey/?devices=dev1,dev2
   const apiToken = parsed.password;
   const userKey = parsed.host;
@@ -220,7 +213,7 @@ async function sendPushover(parsed: ParsedUrl, payload: ShoutrrrPayload): Promis
   return response.ok;
 }
 
-async function sendGotify(parsed: ParsedUrl, payload: ShoutrrrPayload): Promise<boolean> {
+async function sendGotify(parsed: ParsedUrl, payload: AlertPayload): Promise<boolean> {
   // gotify://host[:port]/token
   const token = parsed.path.split('/').filter(Boolean)[0];
   if (!parsed.host || !token) return false;
@@ -237,7 +230,7 @@ async function sendGotify(parsed: ParsedUrl, payload: ShoutrrrPayload): Promise<
   return response.ok;
 }
 
-async function sendGeneric(parsed: ParsedUrl, payload: ShoutrrrPayload): Promise<boolean> {
+async function sendGeneric(parsed: ParsedUrl, payload: AlertPayload): Promise<boolean> {
   // generic://host[:port]/path
   if (!parsed.host) return false;
 
@@ -271,7 +264,7 @@ async function sendGeneric(parsed: ParsedUrl, payload: ShoutrrrPayload): Promise
 
 const adapters: Record<
   string,
-  (parsed: ParsedUrl, payload: ShoutrrrPayload) => Promise<boolean>
+  (parsed: ParsedUrl, payload: AlertPayload) => Promise<boolean>
 > = {
   slack: sendSlack,
   discord: sendDiscord,
@@ -290,9 +283,9 @@ export const SUPPORTED_SERVICES = Object.keys(adapters);
  */
 export async function dispatchShoutrrr(
   urls: string[],
-  payload: ShoutrrrPayload,
+  payload: AlertPayload,
 ): Promise<ShoutrrrResult[]> {
-  const results = await Promise.allSettled(
+  return Promise.all(
     urls.map(async (rawUrl): Promise<ShoutrrrResult> => {
       const parsed = parseUrl(rawUrl);
       if (!parsed) return { service: 'unknown', success: false };
@@ -307,9 +300,5 @@ export async function dispatchShoutrrr(
         return { service: parsed.scheme, success: false };
       }
     }),
-  );
-
-  return results.map((r) =>
-    r.status === 'fulfilled' ? r.value : { service: 'unknown', success: false },
   );
 }

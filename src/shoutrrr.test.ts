@@ -5,7 +5,7 @@ import {
   dispatchShoutrrr,
   SUPPORTED_SERVICES,
 } from './shoutrrr';
-import type { ShoutrrrPayload } from './shoutrrr';
+import type { AlertPayload } from './index';
 
 // --- URL parser tests ---
 
@@ -210,7 +210,7 @@ describe('SUPPORTED_SERVICES', () => {
 // --- dispatchShoutrrr tests ---
 
 describe('dispatchShoutrrr', () => {
-  const testPayload: ShoutrrrPayload = {
+  const testPayload: AlertPayload = {
     session_id: 'test-123',
     notification_type: 'permission_prompt',
     message: 'Test message',
