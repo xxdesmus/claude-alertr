@@ -164,6 +164,10 @@ npm run deploy       # Deploy to Cloudflare
 - [Cloudflare account](https://dash.cloudflare.com/) (free tier works)
 - [`jq`](https://jqlang.github.io/jq/) and [`curl`](https://curl.se/) installed locally
 
+## Disclaimer
+
+This is an independent, community-built tool. It is not affiliated with, endorsed by, or supported by Anthropic. Use of Claude Code is subject to Anthropic's [Terms of Service](https://www.anthropic.com/terms).
+
 ## License
 
 [MIT](LICENSE)
