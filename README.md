@@ -45,6 +45,8 @@ wrangler secret put WEBHOOK_URL          # Slack or Discord webhook URL
 # — or —
 wrangler secret put RESEND_API_KEY       # Email via Resend
 wrangler secret put ALERT_EMAIL_TO       # Recipient email address
+# — or —
+wrangler secret put SHOUTRRR_URLS        # Shoutrrr URL(s) — see Notification Channels
 ```
 
 ### 3. Install the plugin
@@ -83,16 +85,43 @@ Config lives at `~/.claude-alertr/config`:
 
 ## Notification Channels
 
-Both channels can be active simultaneously.
+All channels can be active simultaneously.
 
-**Webhook (Slack / Discord):** Set `WEBHOOK_URL` on the Worker. Alerts are sent as JSON with a `text` field compatible with Slack and Discord incoming webhooks. Example:
+### Webhook
+
+Set `WEBHOOK_URL` on the Worker. Alerts are sent as JSON with a `text` field compatible with Slack and Discord incoming webhooks. Example message:
 
 ```
 [macbook-pro] Claude Code is waiting for your input (permission_prompt)
 Pull latest changes from GitHub: git pull
 ```
 
-**Email (via Resend):** Set `RESEND_API_KEY` and `ALERT_EMAIL_TO` on the Worker. Optionally set `ALERT_EMAIL_FROM` (defaults to `alerts@resend.dev`). Sends a styled HTML email with type, details, project, host, and session info.
+### Email (via Resend)
+
+Set `RESEND_API_KEY` and `ALERT_EMAIL_TO` on the Worker. Optionally set `ALERT_EMAIL_FROM` (defaults to `alerts@resend.dev`). Sends a styled HTML email with type, details, project, host, and session info.
+
+### Shoutrrr (multi-service)
+
+Set `SHOUTRRR_URLS` on the Worker with one or more [Shoutrrr](https://github.com/containrrr/shoutrrr)-compatible URLs (space or newline separated). This enables 7 additional notification services with a single secret:
+
+| Service | URL format |
+|---------|-----------|
+| Slack | `slack://token-a/token-b/token-c` |
+| Discord | `discord://webhook-token@webhook-id` |
+| Telegram | `telegram://bot-id:bot-token@telegram?chats=@channel,chat-id` |
+| Ntfy | `ntfy://[user:pass@]ntfy.sh/topic` |
+| Pushover | `pushover://shoutrrr:api-token@user-key` |
+| Gotify | `gotify://host[:port]/app-token` |
+| Generic webhook | `generic://host[:port]/path` |
+
+Example with multiple services:
+
+```bash
+wrangler secret put SHOUTRRR_URLS
+# Enter: slack://T00/B00/XXX ntfy://ntfy.sh/my-alerts
+```
+
+Shoutrrr URLs work alongside `WEBHOOK_URL` and email — you can mix and match.
 
 ## Alert Payload
 
