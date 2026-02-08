@@ -1,311 +1,114 @@
 # claude-alertr
 
-A Claude Code plugin that alerts you when Claude has been waiting for your input for more than 1 minute. Get notified via **webhook** (Slack, Discord, etc.) or **email** so you never leave Claude hanging.
+Get notified when [Claude Code](https://docs.anthropic.com/en/docs/claude-code) is waiting for your input.
+
+When Claude hits a permission prompt or asks a question, claude-alertr waits a configurable delay (default: 60s) and then sends you an alert via Slack, Discord, or email — including what Claude is waiting on and which machine it's running on.
 
 ## How It Works
 
-```
-Claude Code is waiting ──► Notification hook fires ──► 60s timer starts
-                                                            │
-User responds? ──► Dismiss hook cancels timer               │
-                                                            │
-                                          Timer expires ──► Worker sends alert
-                                                            │
-                                              ┌─────────────┴──────────────┐
-                                              ▼                            ▼
-                                         Webhook POST                Email (Resend)
-                                      (Slack, Discord, etc.)
-```
-
-**Two components:**
-
-1. **Cloudflare Worker** — A lightweight relay service that receives alerts and forwards them to your webhook URL and/or email
-2. **Claude Code hooks** — Local shell scripts that detect when Claude is idle, wait 60 seconds, then fire if you still haven't responded
-
-## Architecture
+Two local shell hooks monitor Claude Code. When Claude is blocked waiting for you, a background timer starts. If you don't respond in time, the hook POSTs to a Cloudflare Worker you deploy, which relays the alert to your notification channels. When you respond, the timer is automatically cancelled.
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  YOUR MACHINE                                                           │
-│                                                                         │
-│  ┌───────────────────────────────────────────────────────────┐          │
-│  │  Claude Code                                              │          │
-│  │                                                           │          │
-│  │  ┌──────────────────┐       ┌───────────────────────────┐ │          │
-│  │  │  Notification    │       │  UserPromptSubmit         │ |          │
-│  │  │  event fires     │       │  event fires              │ |          │
-│  │  └────────┬─────────┘       └─────────────┬─────────────┘ │          │
-│  └───────────┼───────────────────────────────┼───────────────┘          │
-│              │                               │                          │
-│              ▼                               ▼                          │
-│  ┌───────────────────────┐     ┌──────────────────────────┐             │
-│  │  idle-alert.sh        │     │  dismiss-alert.sh        │             │
-│  │                       │     │                          │             │
-│  │  1. Parse session_id  │     │  1. Parse session_id     │             │
-│  │  2. Read config       │     │  2. Kill background timer│             │
-│  │  3. Write marker file │     │  3. Remove marker file   │             │
-│  │  4. Start background  │     └──────────────────────────┘             │
-│  │     sleep timer       │                                              │
-│  └────────┬──────────────┘        /tmp/claude-alertr/                   │
-│           │                       ├── <session_id>       (marker file)  │
-│           │  (after delay)        └── <session_id>.pid   (timer PID)    │
-│           ▼                                                             │
-│  ┌────────────────────┐                                                 │
-│  │  curl POST /alert  │-──────────────────┐                             │
-│  │  + Bearer token    │                   │                             │
-│  └────────────────────┘                   │                             │
-│                                           │                             │
-│  ~/.claude-alertr/                        │                             │
-│  ├── config          (URL, token, delay)  │                             │
-│  └── hooks/                               │                             │
-│      ├── idle-alert.sh                    │                             │
-│      └── dismiss-alert.sh                 │                             │
-│                                           │                             │
-└───────────────────────────────────────────┼─────────────────────────────┘
-                                            │
-                                            │  HTTPS POST
-                                            ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│  CLOUDFLARE WORKERS                                                     │
-│                                                                         │
-│  ┌───────────────────────────────────────────────────────────────────┐  │
-│  │  claude-alertr Worker (src/index.ts)                              │  │
-│  │                                                                   │  │
-│  │  ┌─────────────┐  ┌──────────────────────────────────────────-┐   │  │
-│  │  │  Rate Limit  │──►  Route Handler                           │   │  │
-│  │  │  (per-IP)    │  │                                          │   │  │
-│  │  └─────────────┘  │  GET /       → Health check (JSON)        │   │  │
-│  │                    │  GET /setup  → Setup wizard (HTML)       │   │  │
-│  │  ┌─────────────┐  │  POST /alert → Auth → Dispatch            │   │  │
-│  │  │  Auth Check  │◄─│  POST /test  → Auth → Test dispatch      │   │  │
-│  │  │  (SHA-256    │  └──────────────────────────────────────────┘   │  │
-│  │  │  timing-safe)│                                                 │  │
-│  │  └──────┬──────┘                                                  │  │
-│  │         │ authenticated                                           │  │
-│  │         ▼                                                         │  │
-│  │  ┌─────────────────────────────────────────────────────────-─┐    │  │
-│  │  │  Notification Dispatch                                    │    │  │
-│  │  │                                                           │    │  │
-│  │  │  ┌─────────────────────┐   ┌──────────────────────────┐   │    │  │
-│  │  │  │  sendWebhook()      │   │  sendEmail()             │   │    │  │
-│  │  │  │  JSON POST to       │   │  Resend API              │   │    │  │
-│  │  │  │  configured URL     │   │  (HTML-escaped payload)  │   │    │  │
-│  │  │  └─────────┬───────────┘   └──────────────┬───────────┘   │    │  │
-│  │  └────────────┼──────────────────────────────┼──────────────-┘    │  │
-│  └───────────────┼──────────────────────────────┼────────────────────┘  │
-└──────────────────┼──────────────────────────────┼───────────────────────┘
-                   │                              │
-                   ▼                              ▼
-        ┌──────────────────┐           ┌──────────────────┐
-        │  Webhook Service │           │  Resend API      │
-        │  (Slack, Discord,│           │                  │
-        │   Pushover, etc.)│           │  ┌─────────────┐ │
-        │                  │           │  │ Email to    │ │
-        │  ┌─────────────┐ │           │  │ configured  │ │
-        │  │ Notification│ │           │  │ recipient   │ │
-        │  └─────────────┘ │           │  └─────────────┘ │
-        └──────────────────┘           └──────────────────┘
+Claude Code (local)                      Cloudflare Worker (relay)
+┌──────────────┐                        ┌──────────────┐
+│ Hook fires   │── delay ── curl POST ──│ /alert       │──▶ Slack / Discord webhook
+│ on prompt    │                        │              │──▶ Email via Resend
+│ Hook cancels │                        └──────────────┘
+│ on response  │
+└──────────────┘
 ```
-
-### Project Structure
-
-```
-claude-alertr/
-├── .claude-plugin/
-│   └── marketplace.json       # Plugin marketplace catalog
-├── plugins/claude-alertr/
-│   ├── .claude-plugin/
-│   │   └── plugin.json        # Plugin manifest (name, version, metadata)
-│   ├── hooks/
-│   │   ├── hooks.json         # Auto-registers Notification + UserPromptSubmit hooks
-│   │   ├── idle-alert.sh      # Notification hook — starts alert timer
-│   │   └── dismiss-alert.sh   # UserPromptSubmit hook — cancels timer
-│   └── skills/setup/
-│       └── SKILL.md           # /claude-alertr:setup slash command
-├── src/
-│   ├── index.ts               # Worker entry — routing, auth, rate limiting, dispatch
-│   ├── index.test.ts          # Vitest test suite (16 tests)
-│   └── setup-page.ts          # Self-contained HTML/CSS/JS setup wizard
-├── install.sh                 # Manual installer (copies hooks + creates config)
-├── uninstall.sh               # Removes hooks + config (preserves other hooks)
-├── wrangler.toml              # Cloudflare Worker configuration
-├── tsconfig.json              # TypeScript config
-└── package.json               # Dependencies (wrangler, vitest, typescript)
-```
-
-### Security Model
-
-```
-Request ──► AUTH_TOKEN set? ──► No ──► 503 (fail-closed)
-                │
-                ▼ Yes
-            Bearer token ──► Missing/wrong ──► 401 (timing-safe SHA-256 compare)
-                │
-                ▼ Match
-            Rate limit ──► Exceeded ──► 429
-                │
-                ▼ OK
-            Process request
-```
-
-- All user-controlled values in email HTML are escaped via `escapeHtml()`
-- Shell hooks sanitize `session_id` to `[a-zA-Z0-9_-]` before use in file paths
-- Config is read via `grep`/`cut` (never `source`) to prevent code injection
-
-## Install via Plugin Marketplace (Recommended)
-
-If you're using Claude Code with plugin marketplace support, this is the easiest way to install:
-
-```bash
-# 1. Add the marketplace
-/plugin marketplace add xxdesmus/claude-alertr
-
-# 2. Install the claude-alertr plugin
-/plugin install claude-alertr@xxdesmus-claude-alertr
-
-# 3. Run the setup wizard
-/claude-alertr:setup
-```
-
-The `/claude-alertr:setup` skill walks you through configuring your Worker URL, auth token, and alert delay — then tests the connection. Hooks are auto-registered; no manual `settings.json` editing needed.
-
-You still need to deploy the Cloudflare Worker separately (see [Deploy the Worker](#2-deploy-the-worker) below).
-
-## Prerequisites
-
-- [Node.js](https://nodejs.org/) 18+
-- [Cloudflare account](https://dash.cloudflare.com/) (free tier works)
-- [`jq`](https://jqlang.github.io/jq/) installed locally
-- [`curl`](https://curl.se/) installed locally
-- (Optional) [Resend](https://resend.com/) account for email alerts
 
 ## Quick Start
 
-### 1. Clone and install dependencies
+### 1. Deploy the Worker
 
 ```bash
 git clone https://github.com/xxdesmus/claude-alertr.git
 cd claude-alertr
 npm install
-```
-
-### 2. Deploy the Worker
-
-```bash
-npx wrangler login
+npx wrangler login   # if not already authenticated
 npm run deploy
 ```
 
-Note the URL printed (e.g., `https://claude-alertr.<you>.workers.dev`).
+Note the Worker URL printed (e.g., `https://claude-alertr.<you>.workers.dev`).
 
-> **Tip:** After deploying, visit `https://claude-alertr.<you>.workers.dev/setup` for a guided setup wizard that walks you through the remaining steps.
-
-### 3. Set the auth token
-
-An auth token is **required** to protect your Worker from unauthorized use:
+### 2. Set Worker secrets
 
 ```bash
-npx wrangler secret put AUTH_TOKEN
-# Choose a strong random token. The hook scripts will send it as a Bearer token.
+# Required — protects your Worker from unauthorized use
+wrangler secret put AUTH_TOKEN
+
+# At least one notification channel:
+wrangler secret put WEBHOOK_URL          # Slack or Discord webhook URL
+# — or —
+wrangler secret put RESEND_API_KEY       # Email via Resend
+wrangler secret put ALERT_EMAIL_TO       # Recipient email address
 ```
 
-### 4. Configure notification channels
+### 3. Install the plugin
 
-Set at least one of these:
+In Claude Code:
 
-**Webhook (Slack, Discord, any URL):**
-```bash
-npx wrangler secret put WEBHOOK_URL
-# Paste your webhook URL when prompted
+```
+/plugin marketplace add xxdesmus/claude-alertr
+/plugin install claude-alertr@xxdesmus-claude-alertr
+/claude-alertr:setup
 ```
 
-**Email (via Resend):**
-```bash
-npx wrangler secret put RESEND_API_KEY
-npx wrangler secret put ALERT_EMAIL_TO
-# Optionally customize the sender:
-npx wrangler secret put ALERT_EMAIL_FROM
-```
+The setup wizard walks you through entering your Worker URL, auth token, and alert delay — then tests the connection. Hooks are auto-registered.
 
-### 5. Install hooks into Claude Code
+> **Tip:** Visit `https://<your-worker>.workers.dev/setup` for a browser-based setup wizard as an alternative.
 
-```bash
-./install.sh
-```
-
-The installer will:
-- Copy hook scripts to `~/.claude-alertr/hooks/`
-- Prompt you for your Worker URL and auth token
-- Merge hooks into your global Claude Code settings (`~/.claude/settings.json`), preserving any existing hooks
-
-### 6. Test it
+### 4. Test it
 
 ```bash
 curl -X POST \
-  -H "Authorization: Bearer <YOUR_AUTH_TOKEN>" \
-  https://claude-alertr.<you>.workers.dev/test
-# You should receive a webhook/email within seconds
+  -H "Authorization: Bearer <your-token>" \
+  https://<your-worker>.workers.dev/test
 ```
+
+You should receive a notification within seconds.
 
 ## Configuration
 
-All local configuration lives in `~/.claude-alertr/config`:
+Config lives at `~/.claude-alertr/config`:
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `CLAUDE_ALERTR_URL` | Your deployed Worker URL | (required) |
-| `CLAUDE_ALERTR_TOKEN` | Bearer token for authentication | (required) |
-| `CLAUDE_ALERTR_DELAY` | Seconds to wait before alerting | `60` |
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `CLAUDE_ALERTR_URL` | Your deployed Worker URL | *(required)* |
+| `CLAUDE_ALERTR_TOKEN` | Auth token (must match Worker's `AUTH_TOKEN` secret) | *(required)* |
+| `CLAUDE_ALERTR_DELAY` | Seconds to wait before alerting (15–300) | `60` |
 
-Edit it directly:
-```bash
-nano ~/.claude-alertr/config
+## Notification Channels
+
+Both channels can be active simultaneously.
+
+**Webhook (Slack / Discord):** Set `WEBHOOK_URL` on the Worker. Alerts are sent as JSON with a `text` field compatible with Slack and Discord incoming webhooks. Example:
+
+```
+[macbook-pro] Claude Code is waiting for your input (permission_prompt)
+Pull latest changes from GitHub: git pull
 ```
 
-## API Endpoints
+**Email (via Resend):** Set `RESEND_API_KEY` and `ALERT_EMAIL_TO` on the Worker. Optionally set `ALERT_EMAIL_FROM` (defaults to `alerts@resend.dev`). Sends a styled HTML email with type, details, project, host, and session info.
 
-All `POST` endpoints require a `Authorization: Bearer <TOKEN>` header.
+## Alert Payload
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| `GET` | `/` | No | Health check — returns service status |
-| `GET` | `/setup` | No | Interactive setup wizard |
-| `POST` | `/alert` | Yes | Receive an alert and forward to configured channels |
-| `POST` | `/test` | Yes | Send a test notification through all configured channels |
-
-### Alert payload format
+The hook sends a JSON payload to the Worker's `/alert` endpoint:
 
 ```json
 {
   "session_id": "abc123",
   "notification_type": "permission_prompt",
   "message": "Claude needs your permission to use Bash",
-  "title": "Permission needed",
   "details": "Pull latest changes from GitHub: git pull",
   "cwd": "/path/to/project",
+  "hostname": "macbook-pro",
   "timestamp": "2025-01-15T10:30:00Z"
 }
 ```
 
-The `details` field is automatically extracted from the session transcript by the hook — it contains the specific tool call or question Claude is waiting on.
-
-### Webhook output format
-
-The Worker forwards alerts as a JSON POST:
-
-```json
-{
-  "text": "Claude Code is waiting for your input (permission_prompt)\nPull latest changes from GitHub: git pull",
-  "session_id": "abc123",
-  "notification_type": "permission_prompt",
-  "message": "Claude needs your permission to use Bash",
-  "details": "Pull latest changes from GitHub: git pull",
-  "project": "/path/to/project",
-  "waiting_since": "2025-01-15T10:30:00Z"
-}
-```
-
-The `text` field is compatible with Slack and Discord incoming webhooks. When `details` is present, it is appended to `text` so webhook services display the context inline.
+The `details` field is automatically extracted from the session transcript — it contains the specific tool call or question Claude is waiting on. The `hostname` identifies which machine triggered the alert.
 
 ## Notification Types
 
@@ -314,30 +117,53 @@ The `text` field is compatible with Slack and Discord incoming webhooks. When `d
 | `permission_prompt` | Claude needs permission to run a tool |
 | `elicitation_dialog` | Claude is asking you a question |
 
-> **Note:** `idle_prompt` (Claude finished and is waiting for your next prompt) is intentionally excluded — it fires after every completed response, which causes false alerts when a task is simply done.
+`idle_prompt` (Claude finished and is waiting for your next prompt) is intentionally excluded — it fires after every completed response.
 
-## Uninstall
+## API Endpoints
 
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| `GET` | `/` | No | Health check |
+| `GET` | `/setup` | No | Interactive setup wizard |
+| `POST` | `/alert` | Yes | Forward alert to configured channels |
+| `POST` | `/test` | Yes | Send a test notification |
+
+## Alternative Install
+
+If you prefer not to use the plugin marketplace:
+
+```bash
+./install.sh
+```
+
+This copies hook scripts, creates a config file, and registers hooks in Claude Code's settings.
+
+## Uninstalling
+
+Plugin installs: remove the plugin from Claude Code.
+
+Manual installs:
 ```bash
 ./uninstall.sh
 ```
 
-This removes only the claude-alertr hooks from Claude Code settings (preserving other hooks) and deletes `~/.claude-alertr/`. To also remove the Worker:
-
-```bash
-npx wrangler delete claude-alertr
-```
+To also remove the Worker: `wrangler delete claude-alertr`
 
 ## Development
 
 ```bash
-npm run dev          # Start local dev server
-npx vitest run       # Run tests once
-npx vitest           # Run tests in watch mode
+npm run dev          # Local dev server
+npx vitest run       # Run tests
 npx tsc --noEmit     # Type check
 npm run deploy       # Deploy to Cloudflare
 ```
 
+## Prerequisites
+
+- [Node.js](https://nodejs.org/) 18+
+- [Cloudflare account](https://dash.cloudflare.com/) (free tier works)
+- [`jq`](https://jqlang.github.io/jq/) and [`curl`](https://curl.se/) installed locally
+
 ## License
 
-MIT
+[MIT](LICENSE)
