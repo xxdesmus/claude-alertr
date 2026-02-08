@@ -1,4 +1,5 @@
 import { getSetupPageHtml } from './setup-page';
+import { parseShoutrrrUrls, dispatchShoutrrr } from './shoutrrr';
 
 export interface Env {
   WEBHOOK_URL?: string;
@@ -6,6 +7,7 @@ export interface Env {
   ALERT_EMAIL_TO?: string;
   ALERT_EMAIL_FROM?: string;
   AUTH_TOKEN?: string;
+  SHOUTRRR_URLS?: string;
 }
 
 interface AlertPayload {
@@ -208,11 +210,19 @@ async function handleAlert(request: Request, env: Env): Promise<Response> {
     results.email = await sendEmail(env.RESEND_API_KEY, env.ALERT_EMAIL_TO, from, payload);
   }
 
+  if (env.SHOUTRRR_URLS) {
+    const urls = parseShoutrrrUrls(env.SHOUTRRR_URLS);
+    const shoutrrrResults = await dispatchShoutrrr(urls, payload);
+    for (const r of shoutrrrResults) {
+      results[`shoutrrr:${r.service}`] = r.success;
+    }
+  }
+
   if (Object.keys(results).length === 0) {
     return jsonResponse(
       {
         error: 'No notification channels configured',
-        help: 'Set WEBHOOK_URL for webhook alerts, or RESEND_API_KEY + ALERT_EMAIL_TO for email alerts.',
+        help: 'Set WEBHOOK_URL, RESEND_API_KEY + ALERT_EMAIL_TO, or SHOUTRRR_URLS (slack://, discord://, telegram://, ntfy://, pushover://, gotify://, generic://).',
       },
       500,
     );
@@ -247,11 +257,19 @@ async function handleTest(request: Request, env: Env): Promise<Response> {
     results.email = await sendEmail(env.RESEND_API_KEY, env.ALERT_EMAIL_TO, from, testPayload);
   }
 
+  if (env.SHOUTRRR_URLS) {
+    const urls = parseShoutrrrUrls(env.SHOUTRRR_URLS);
+    const shoutrrrResults = await dispatchShoutrrr(urls, testPayload);
+    for (const r of shoutrrrResults) {
+      results[`shoutrrr:${r.service}`] = r.success;
+    }
+  }
+
   if (Object.keys(results).length === 0) {
     return jsonResponse(
       {
         error: 'No notification channels configured',
-        help: 'Set WEBHOOK_URL for webhook alerts, or RESEND_API_KEY + ALERT_EMAIL_TO for email alerts.',
+        help: 'Set WEBHOOK_URL, RESEND_API_KEY + ALERT_EMAIL_TO, or SHOUTRRR_URLS (slack://, discord://, telegram://, ntfy://, pushover://, gotify://, generic://).',
       },
       500,
     );

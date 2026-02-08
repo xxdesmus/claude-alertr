@@ -115,6 +115,27 @@ describe('claude-alertr worker', () => {
       expect(res.status).toBe(500);
       const body = (await res.json()) as Record<string, unknown>;
       expect(body.error).toContain('No notification channels configured');
+      expect(body.help).toContain('SHOUTRRR_URLS');
+    });
+
+    it('dispatches to Shoutrrr channels when SHOUTRRR_URLS is set', async () => {
+      env.SHOUTRRR_URLS = 'slack://T00/B00/XXX';
+      const res = await worker.fetch(
+        authRequest('/alert', 'test-secret', {
+          method: 'POST',
+          body: JSON.stringify({
+            session_id: 'test-123',
+            notification_type: 'idle_prompt',
+          }),
+        }),
+        env,
+        ctx,
+      );
+      // Should return 200 (channel is configured) even if delivery fails
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Record<string, unknown>;
+      expect(body.ok).toBe(true);
+      expect(body.results).toHaveProperty('shoutrrr:slack');
     });
 
     it('allows authorized requests with correct token', async () => {
@@ -161,6 +182,20 @@ describe('claude-alertr worker', () => {
         ctx,
       );
       expect(res.status).toBe(500);
+    });
+
+    it('dispatches to Shoutrrr channels when SHOUTRRR_URLS is set', async () => {
+      env.SHOUTRRR_URLS = 'discord://token@12345';
+      const res = await worker.fetch(
+        authRequest('/test', 'test-secret', { method: 'POST' }),
+        env,
+        ctx,
+      );
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as Record<string, unknown>;
+      expect(body.ok).toBe(true);
+      expect(body.test).toBe(true);
+      expect(body.results).toHaveProperty('shoutrrr:discord');
     });
   });
 
