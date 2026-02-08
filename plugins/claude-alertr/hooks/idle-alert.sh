@@ -81,8 +81,8 @@ if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
   fi
 fi
 
-# Write the notification data with a timestamp and details
-echo "$INPUT" | jq --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --arg details "$DETAILS" '. + {timestamp: $ts, details: $details}' > "$ALERT_FILE"
+# Write the notification data with a timestamp, details, and hostname
+echo "$INPUT" | jq --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --arg details "$DETAILS" --arg host "$(hostname -s)" '. + {timestamp: $ts, details: $details, hostname: $host}' > "$ALERT_FILE"
 
 # Spawn background timer process
 (

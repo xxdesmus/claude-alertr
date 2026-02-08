@@ -28,7 +28,7 @@ This is a two-component system that alerts users when Claude Code is idle:
 **Setup wizard** (`src/setup-page.ts`) — A self-contained HTML/CSS/JS page served at `/setup`. No framework or build step — just a template literal returning the full page. The wizard guides users through connection testing, delay configuration, and install command generation.
 
 **Local shell hooks** (`plugins/claude-alertr/hooks/`) — Two bash scripts installed into Claude Code's hook system:
-- `idle-alert.sh` runs on `Notification` events, but only for `permission_prompt` and `elicitation_dialog` (not `idle_prompt`). It extracts the pending tool call or question from the session transcript, starts a background `sleep` timer, and if the user doesn't respond within the delay (default 60s), POSTs to the Worker's `/alert` endpoint with a `details` field describing what Claude is waiting on.
+- `idle-alert.sh` runs on `Notification` events, but only for `permission_prompt` and `elicitation_dialog` (not `idle_prompt`). It extracts the pending tool call or question from the session transcript, captures the device hostname, starts a background `sleep` timer, and if the user doesn't respond within the delay (default 60s), POSTs to the Worker's `/alert` endpoint with `details`, and `hostname` fields so the notification identifies both what Claude is waiting on and which machine it's running on.
 - `dismiss-alert.sh` runs on `UserPromptSubmit` events. It kills the pending timer and removes the marker file.
 
 The hooks communicate via files in `/tmp/claude-alertr/` (one file per session_id, plus a .pid file for the timer process).

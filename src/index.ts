@@ -16,6 +16,7 @@ interface AlertPayload {
   cwd?: string;
   timestamp?: string;
   details?: string;
+  hostname?: string;
 }
 
 // --- Rate limiting (per-isolate, best-effort) ---
@@ -101,14 +102,17 @@ async function sendWebhook(url: string, payload: AlertPayload): Promise<boolean>
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        text: payload.details
-          ? `Claude Code is waiting for your input (${payload.notification_type})\n${payload.details}`
-          : `Claude Code is waiting for your input (${payload.notification_type})`,
+        text: [
+          payload.hostname ? `[${payload.hostname}] ` : '',
+          `Claude Code is waiting for your input (${payload.notification_type})`,
+          payload.details ? `\n${payload.details}` : '',
+        ].join(''),
         session_id: payload.session_id,
         notification_type: payload.notification_type,
         message: payload.message || '',
         details: payload.details || '',
         project: payload.cwd || '',
+        hostname: payload.hostname || '',
         waiting_since: payload.timestamp || '',
       }),
     });
@@ -130,6 +134,7 @@ async function sendEmail(
     const safeMessage = payload.message ? escapeHtml(payload.message) : '';
     const safeDetails = payload.details ? escapeHtml(payload.details) : '';
     const safeCwd = escapeHtml(payload.cwd || 'unknown');
+    const safeHostname = payload.hostname ? escapeHtml(payload.hostname) : '';
     const safeSessionId = escapeHtml(payload.session_id);
     const safeTimestamp = escapeHtml(payload.timestamp || 'unknown');
 
@@ -142,7 +147,9 @@ async function sendEmail(
       body: JSON.stringify({
         from,
         to: [to],
-        subject: `Claude Code: Action Required — ${projectName}`,
+        subject: safeHostname
+          ? `Claude Code: Action Required — ${projectName} (${safeHostname})`
+          : `Claude Code: Action Required — ${projectName}`,
         html: [
           '<div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">',
           '<h2 style="color: #d97706;">Claude Code is waiting for your input</h2>',
@@ -155,6 +162,9 @@ async function sendEmail(
             ? `<tr><td style="padding: 8px; font-weight: bold;">Details</td><td style="padding: 8px;"><code>${safeDetails}</code></td></tr>`
             : '',
           `<tr><td style="padding: 8px; font-weight: bold;">Project</td><td style="padding: 8px;">${safeCwd}</td></tr>`,
+          safeHostname
+            ? `<tr><td style="padding: 8px; font-weight: bold;">Host</td><td style="padding: 8px;">${safeHostname}</td></tr>`
+            : '',
           `<tr><td style="padding: 8px; font-weight: bold;">Session</td><td style="padding: 8px;"><code>${safeSessionId}</code></td></tr>`,
           `<tr><td style="padding: 8px; font-weight: bold;">Waiting since</td><td style="padding: 8px;">${safeTimestamp}</td></tr>`,
           '</table>',
@@ -222,6 +232,7 @@ async function handleTest(request: Request, env: Env): Promise<Response> {
     title: 'Test Alert',
     details: 'Bash: git push — Push commits to remote',
     cwd: '/example/project',
+    hostname: 'test-host',
     timestamp: new Date().toISOString(),
   };
 
