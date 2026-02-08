@@ -187,8 +187,8 @@ async function sendEmail(
 async function dispatchAll(
   env: Env,
   payload: AlertPayload,
-): Promise<Record<string, boolean> | Response> {
-  const results: Record<string, boolean> = {};
+): Promise<Record<string, unknown> | Response> {
+  const results: Record<string, unknown> = {};
 
   if (env.WEBHOOK_URL) {
     results.webhook = await sendWebhook(env.WEBHOOK_URL, payload);
@@ -207,7 +207,15 @@ async function dispatchAll(
       const key = shoutrrrResults.filter((s, j) => j < i && s.service === r.service).length > 0
         ? `shoutrrr:${r.service}:${i}`
         : `shoutrrr:${r.service}`;
-      results[key] = r.success;
+      // Include status/error details for failed channels to aid debugging
+      if (r.success) {
+        results[key] = true;
+      } else {
+        const detail: Record<string, unknown> = { success: false };
+        if (r.status) detail.status = r.status;
+        if (r.error) detail.error = r.error;
+        results[key] = detail;
+      }
     }
   }
 

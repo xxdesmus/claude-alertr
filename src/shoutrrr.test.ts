@@ -224,7 +224,7 @@ describe('dispatchShoutrrr', () => {
   const originalFetch = globalThis.fetch;
 
   beforeEach(() => {
-    fetchSpy = vi.fn().mockResolvedValue({ ok: true });
+    fetchSpy = vi.fn().mockResolvedValue({ ok: true, status: 200 });
     globalThis.fetch = fetchSpy as unknown as typeof fetch;
   });
 
@@ -235,7 +235,7 @@ describe('dispatchShoutrrr', () => {
   it('dispatches to Slack with correct webhook URL', async () => {
     const results = await dispatchShoutrrr(['slack://T00/B00/XXX'], testPayload);
     expect(results).toHaveLength(1);
-    expect(results[0]).toEqual({ service: 'slack', success: true });
+    expect(results[0]).toEqual({ service: 'slack', success: true, status: 200 });
     expect(fetchSpy).toHaveBeenCalledWith(
       'https://hooks.slack.com/services/T00/B00/XXX',
       expect.objectContaining({ method: 'POST' }),
@@ -245,7 +245,7 @@ describe('dispatchShoutrrr', () => {
   it('dispatches to Discord with correct webhook URL', async () => {
     const results = await dispatchShoutrrr(['discord://mytoken@12345'], testPayload);
     expect(results).toHaveLength(1);
-    expect(results[0]).toEqual({ service: 'discord', success: true });
+    expect(results[0]).toEqual({ service: 'discord', success: true, status: 200 });
     expect(fetchSpy).toHaveBeenCalledWith(
       'https://discord.com/api/webhooks/12345/mytoken',
       expect.objectContaining({ method: 'POST' }),
@@ -258,7 +258,7 @@ describe('dispatchShoutrrr', () => {
       testPayload,
     );
     expect(results).toHaveLength(1);
-    expect(results[0]).toEqual({ service: 'telegram', success: true });
+    expect(results[0]).toEqual({ service: 'telegram', success: true, status: 200 });
     expect(fetchSpy).toHaveBeenCalledTimes(2);
     expect(fetchSpy).toHaveBeenCalledWith(
       'https://api.telegram.org/bot111:AAA/sendMessage',
@@ -272,7 +272,7 @@ describe('dispatchShoutrrr', () => {
       testPayload,
     );
     expect(results).toHaveLength(1);
-    expect(results[0]).toEqual({ service: 'ntfy', success: true });
+    expect(results[0]).toEqual({ service: 'ntfy', success: true, status: 200 });
     expect(fetchSpy).toHaveBeenCalledWith(
       'https://ntfy.sh/alerts',
       expect.objectContaining({
@@ -290,22 +290,35 @@ describe('dispatchShoutrrr', () => {
       testPayload,
     );
     expect(results).toHaveLength(1);
-    expect(results[0]).toEqual({ service: 'pushover', success: true });
+    expect(results[0]).toEqual({ service: 'pushover', success: true, status: 200 });
     expect(fetchSpy).toHaveBeenCalledWith(
       'https://api.pushover.net/1/messages.json',
       expect.objectContaining({ method: 'POST' }),
     );
   });
 
-  it('dispatches to Gotify', async () => {
+  it('dispatches to Gotify with token in query param', async () => {
     const results = await dispatchShoutrrr(
       ['gotify://gotify.example.com/Atoken123'],
       testPayload,
     );
     expect(results).toHaveLength(1);
-    expect(results[0]).toEqual({ service: 'gotify', success: true });
+    expect(results[0]).toEqual({ service: 'gotify', success: true, status: 200 });
     expect(fetchSpy).toHaveBeenCalledWith(
-      expect.stringContaining('https://gotify.example.com/message?token='),
+      'https://gotify.example.com/message?token=Atoken123',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('dispatches to Gotify with path prefix', async () => {
+    const results = await dispatchShoutrrr(
+      ['gotify://gotify.example.com/custom/path/Atoken123'],
+      testPayload,
+    );
+    expect(results).toHaveLength(1);
+    expect(results[0]).toEqual({ service: 'gotify', success: true, status: 200 });
+    expect(fetchSpy).toHaveBeenCalledWith(
+      'https://gotify.example.com/custom/path/message?token=Atoken123',
       expect.objectContaining({ method: 'POST' }),
     );
   });
@@ -316,7 +329,7 @@ describe('dispatchShoutrrr', () => {
       testPayload,
     );
     expect(results).toHaveLength(1);
-    expect(results[0]).toEqual({ service: 'generic', success: true });
+    expect(results[0]).toEqual({ service: 'generic', success: true, status: 200 });
     expect(fetchSpy).toHaveBeenCalledWith(
       'https://hooks.example.com/webhook/abc',
       expect.objectContaining({ method: 'POST' }),
@@ -329,8 +342,8 @@ describe('dispatchShoutrrr', () => {
       testPayload,
     );
     expect(results).toHaveLength(2);
-    expect(results[0]).toEqual({ service: 'slack', success: true });
-    expect(results[1]).toEqual({ service: 'discord', success: true });
+    expect(results[0]).toEqual({ service: 'slack', success: true, status: 200 });
+    expect(results[1]).toEqual({ service: 'discord', success: true, status: 200 });
     expect(fetchSpy).toHaveBeenCalledTimes(2);
   });
 
@@ -347,31 +360,31 @@ describe('dispatchShoutrrr', () => {
     expect(results[0]).toEqual({ service: 'unknown', success: false });
   });
 
-  it('returns success:false when fetch fails', async () => {
+  it('returns success:false with error when fetch fails', async () => {
     fetchSpy.mockRejectedValue(new Error('network error'));
     const results = await dispatchShoutrrr(['slack://T00/B00/XXX'], testPayload);
     expect(results).toHaveLength(1);
-    expect(results[0]).toEqual({ service: 'slack', success: false });
+    expect(results[0]).toEqual({ service: 'slack', success: false, error: 'Error: network error' });
   });
 
-  it('returns success:false when fetch returns non-ok', async () => {
+  it('returns success:false with status when fetch returns non-ok', async () => {
     fetchSpy.mockResolvedValue({ ok: false, status: 500 });
     const results = await dispatchShoutrrr(['slack://T00/B00/XXX'], testPayload);
     expect(results).toHaveLength(1);
-    expect(results[0]).toEqual({ service: 'slack', success: false });
+    expect(results[0]).toEqual({ service: 'slack', success: false, status: 500 });
   });
 
   it('isolates failures — one service failing does not block others', async () => {
     fetchSpy
       .mockResolvedValueOnce({ ok: false, status: 500 })
-      .mockResolvedValueOnce({ ok: true });
+      .mockResolvedValueOnce({ ok: true, status: 200 });
     const results = await dispatchShoutrrr(
       ['slack://T00/B00/XXX', 'discord://token@id'],
       testPayload,
     );
     expect(results).toHaveLength(2);
-    expect(results[0]).toEqual({ service: 'slack', success: false });
-    expect(results[1]).toEqual({ service: 'discord', success: true });
+    expect(results[0]).toEqual({ service: 'slack', success: false, status: 500 });
+    expect(results[1]).toEqual({ service: 'discord', success: true, status: 200 });
   });
 
   it('returns empty array for empty URL list', async () => {

@@ -11,6 +11,8 @@ import type { AlertPayload } from './index';
 export interface ShoutrrrResult {
   service: string;
   success: boolean;
+  status?: number;
+  error?: string;
 }
 
 export interface ParsedUrl {
@@ -117,10 +119,15 @@ function formatMessage(payload: AlertPayload): { title: string; body: string } {
 
 // --- Service adapters ---
 
-async function sendSlack(parsed: ParsedUrl, payload: AlertPayload): Promise<boolean> {
+interface AdapterResult {
+  ok: boolean;
+  status?: number;
+}
+
+async function sendSlack(parsed: ParsedUrl, payload: AlertPayload): Promise<AdapterResult> {
   // slack://[botname@]token-a/token-b/token-c
   const tokenA = parsed.host;
-  if (!tokenA || !parsed.path) return false;
+  if (!tokenA || !parsed.path) return { ok: false };
 
   const webhookUrl = `https://hooks.slack.com/services/${tokenA}${parsed.path}`;
   const { title, body } = formatMessage(payload);
@@ -130,14 +137,14 @@ async function sendSlack(parsed: ParsedUrl, payload: AlertPayload): Promise<bool
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ text: `*${title}*\n${body}` }),
   });
-  return response.ok;
+  return { ok: response.ok, status: response.status };
 }
 
-async function sendDiscord(parsed: ParsedUrl, payload: AlertPayload): Promise<boolean> {
+async function sendDiscord(parsed: ParsedUrl, payload: AlertPayload): Promise<AdapterResult> {
   // discord://token@id
   const webhookId = parsed.host;
   const token = parsed.user;
-  if (!webhookId || !token) return false;
+  if (!webhookId || !token) return { ok: false };
 
   const webhookUrl = `https://discord.com/api/webhooks/${webhookId}/${token}`;
   const { title, body } = formatMessage(payload);
@@ -147,18 +154,18 @@ async function sendDiscord(parsed: ParsedUrl, payload: AlertPayload): Promise<bo
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content: `**${title}**\n${body}` }),
   });
-  return response.ok;
+  return { ok: response.ok, status: response.status };
 }
 
-async function sendTelegram(parsed: ParsedUrl, payload: AlertPayload): Promise<boolean> {
+async function sendTelegram(parsed: ParsedUrl, payload: AlertPayload): Promise<AdapterResult> {
   // telegram://bottoken@telegram?chats=chatId1,chatId2
   // Bot tokens contain a colon (e.g. 123456:ABC-DEF), so reconstruct from user:password
   const token = parsed.password ? `${parsed.user}:${parsed.password}` : parsed.user;
   const chats = parsed.query.chats?.split(',').filter(Boolean) || [];
-  if (!token || chats.length === 0) return false;
+  if (!token || chats.length === 0) return { ok: false };
 
   const { body } = formatMessage(payload);
-  const results = await Promise.allSettled(
+  const results = await Promise.all(
     chats.map((chat) =>
       fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
@@ -167,13 +174,14 @@ async function sendTelegram(parsed: ParsedUrl, payload: AlertPayload): Promise<b
       }),
     ),
   );
-  return results.every((r) => r.status === 'fulfilled' && r.value.ok);
+  const allOk = results.every((r) => r.ok);
+  return { ok: allOk, status: results[results.length - 1]?.status };
 }
 
-async function sendNtfy(parsed: ParsedUrl, payload: AlertPayload): Promise<boolean> {
+async function sendNtfy(parsed: ParsedUrl, payload: AlertPayload): Promise<AdapterResult> {
   // ntfy://[user:pass@]host[:port]/topic
   const topic = parsed.path.split('/').filter(Boolean)[0];
-  if (!parsed.host || !topic) return false;
+  if (!parsed.host || !topic) return { ok: false };
 
   const portSuffix = parsed.port ? `:${parsed.port}` : '';
   const url = `https://${parsed.host}${portSuffix}/${topic}`;
@@ -185,14 +193,14 @@ async function sendNtfy(parsed: ParsedUrl, payload: AlertPayload): Promise<boole
   }
 
   const response = await fetch(url, { method: 'POST', headers, body });
-  return response.ok;
+  return { ok: response.ok, status: response.status };
 }
 
-async function sendPushover(parsed: ParsedUrl, payload: AlertPayload): Promise<boolean> {
+async function sendPushover(parsed: ParsedUrl, payload: AlertPayload): Promise<AdapterResult> {
   // pushover://shoutrrr:apiToken@userKey/?devices=dev1,dev2
   const apiToken = parsed.password;
   const userKey = parsed.host;
-  if (!apiToken || !userKey) return false;
+  if (!apiToken || !userKey) return { ok: false };
 
   const { title, body } = formatMessage(payload);
   const reqBody: Record<string, string> = {
@@ -210,16 +218,19 @@ async function sendPushover(parsed: ParsedUrl, payload: AlertPayload): Promise<b
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(reqBody),
   });
-  return response.ok;
+  return { ok: response.ok, status: response.status };
 }
 
-async function sendGotify(parsed: ParsedUrl, payload: AlertPayload): Promise<boolean> {
-  // gotify://host[:port]/token
-  const token = parsed.path.split('/').filter(Boolean)[0];
-  if (!parsed.host || !token) return false;
+async function sendGotify(parsed: ParsedUrl, payload: AlertPayload): Promise<AdapterResult> {
+  // gotify://host[:port][/path]/token
+  // Token is the last path segment; any preceding segments form the URL path prefix
+  const segments = parsed.path.split('/').filter(Boolean);
+  const token = segments.pop();
+  if (!parsed.host || !token) return { ok: false };
 
   const portSuffix = parsed.port ? `:${parsed.port}` : '';
-  const url = `https://${parsed.host}${portSuffix}/message?token=${encodeURIComponent(token)}`;
+  const pathPrefix = segments.length > 0 ? `/${segments.join('/')}` : '';
+  const url = `https://${parsed.host}${portSuffix}${pathPrefix}/message?token=${encodeURIComponent(token)}`;
   const { title, body } = formatMessage(payload);
 
   const response = await fetch(url, {
@@ -227,12 +238,12 @@ async function sendGotify(parsed: ParsedUrl, payload: AlertPayload): Promise<boo
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ title, message: body, priority: 5 }),
   });
-  return response.ok;
+  return { ok: response.ok, status: response.status };
 }
 
-async function sendGeneric(parsed: ParsedUrl, payload: AlertPayload): Promise<boolean> {
+async function sendGeneric(parsed: ParsedUrl, payload: AlertPayload): Promise<AdapterResult> {
   // generic://host[:port]/path
-  if (!parsed.host) return false;
+  if (!parsed.host) return { ok: false };
 
   const portSuffix = parsed.port ? `:${parsed.port}` : '';
   const url = `https://${parsed.host}${portSuffix}${parsed.path}`;
@@ -257,14 +268,14 @@ async function sendGeneric(parsed: ParsedUrl, payload: AlertPayload): Promise<bo
       waiting_since: payload.timestamp || '',
     }),
   });
-  return response.ok;
+  return { ok: response.ok, status: response.status };
 }
 
 // --- Adapter registry ---
 
 const adapters: Record<
   string,
-  (parsed: ParsedUrl, payload: AlertPayload) => Promise<boolean>
+  (parsed: ParsedUrl, payload: AlertPayload) => Promise<AdapterResult>
 > = {
   slack: sendSlack,
   discord: sendDiscord,
@@ -294,10 +305,10 @@ export async function dispatchShoutrrr(
       if (!adapter) return { service: parsed.scheme, success: false };
 
       try {
-        const success = await adapter(parsed, payload);
-        return { service: parsed.scheme, success };
-      } catch {
-        return { service: parsed.scheme, success: false };
+        const result = await adapter(parsed, payload);
+        return { service: parsed.scheme, success: result.ok, status: result.status };
+      } catch (err) {
+        return { service: parsed.scheme, success: false, error: String(err) };
       }
     }),
   );

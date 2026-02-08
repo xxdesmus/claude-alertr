@@ -123,6 +123,8 @@ wrangler secret put SHOUTRRR_URLS
 
 Shoutrrr URLs work alongside `WEBHOOK_URL` and email — you can mix and match.
 
+> **Note:** Cloudflare Workers cannot reliably reach services that are also behind Cloudflare (proxied DNS or Cloudflare Tunnel). If a Shoutrrr target (e.g., a self-hosted Gotify or Ntfy instance) is proxied through Cloudflare, the Worker's `fetch()` may fail with Cloudflare error 1003. Use an unproxied DNS record for the target or route through a non-Cloudflare endpoint instead.
+
 ## Alert Payload
 
 The hook sends a JSON payload to the Worker's `/alert` endpoint:
