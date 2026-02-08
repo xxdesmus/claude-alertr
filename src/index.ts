@@ -1,4 +1,5 @@
 import { getSetupPageHtml } from './setup-page';
+import { parseShoutrrrUrls, dispatchShoutrrr } from './shoutrrr';
 
 export interface Env {
   WEBHOOK_URL?: string;
@@ -6,9 +7,10 @@ export interface Env {
   ALERT_EMAIL_TO?: string;
   ALERT_EMAIL_FROM?: string;
   AUTH_TOKEN?: string;
+  SHOUTRRR_URLS?: string;
 }
 
-interface AlertPayload {
+export interface AlertPayload {
   session_id: string;
   notification_type: string;
   message?: string;
@@ -180,6 +182,48 @@ async function sendEmail(
   }
 }
 
+// --- Dispatch to all configured channels ---
+
+async function dispatchAll(
+  env: Env,
+  payload: AlertPayload,
+): Promise<Record<string, boolean> | Response> {
+  const results: Record<string, boolean> = {};
+
+  if (env.WEBHOOK_URL) {
+    results.webhook = await sendWebhook(env.WEBHOOK_URL, payload);
+  }
+
+  if (env.RESEND_API_KEY && env.ALERT_EMAIL_TO) {
+    const from = env.ALERT_EMAIL_FROM || 'Claude Alertr <alerts@resend.dev>';
+    results.email = await sendEmail(env.RESEND_API_KEY, env.ALERT_EMAIL_TO, from, payload);
+  }
+
+  if (env.SHOUTRRR_URLS) {
+    const urls = parseShoutrrrUrls(env.SHOUTRRR_URLS);
+    const shoutrrrResults = await dispatchShoutrrr(urls, payload);
+    for (let i = 0; i < shoutrrrResults.length; i++) {
+      const r = shoutrrrResults[i];
+      const key = shoutrrrResults.filter((s, j) => j < i && s.service === r.service).length > 0
+        ? `shoutrrr:${r.service}:${i}`
+        : `shoutrrr:${r.service}`;
+      results[key] = r.success;
+    }
+  }
+
+  if (Object.keys(results).length === 0) {
+    return jsonResponse(
+      {
+        error: 'No notification channels configured',
+        help: 'Set WEBHOOK_URL, RESEND_API_KEY + ALERT_EMAIL_TO, or SHOUTRRR_URLS (slack://, discord://, telegram://, ntfy://, pushover://, gotify://, generic://).',
+      },
+      500,
+    );
+  }
+
+  return results;
+}
+
 // --- Route handlers ---
 
 async function handleAlert(request: Request, env: Env): Promise<Response> {
@@ -197,28 +241,9 @@ async function handleAlert(request: Request, env: Env): Promise<Response> {
     return jsonResponse({ error: 'Missing required fields: session_id, notification_type' }, 400);
   }
 
-  const results: Record<string, boolean> = {};
-
-  if (env.WEBHOOK_URL) {
-    results.webhook = await sendWebhook(env.WEBHOOK_URL, payload);
-  }
-
-  if (env.RESEND_API_KEY && env.ALERT_EMAIL_TO) {
-    const from = env.ALERT_EMAIL_FROM || 'Claude Alertr <alerts@resend.dev>';
-    results.email = await sendEmail(env.RESEND_API_KEY, env.ALERT_EMAIL_TO, from, payload);
-  }
-
-  if (Object.keys(results).length === 0) {
-    return jsonResponse(
-      {
-        error: 'No notification channels configured',
-        help: 'Set WEBHOOK_URL for webhook alerts, or RESEND_API_KEY + ALERT_EMAIL_TO for email alerts.',
-      },
-      500,
-    );
-  }
-
-  return jsonResponse({ ok: true, results });
+  const result = await dispatchAll(env, payload);
+  if (result instanceof Response) return result;
+  return jsonResponse({ ok: true, results: result });
 }
 
 async function handleTest(request: Request, env: Env): Promise<Response> {
@@ -236,28 +261,9 @@ async function handleTest(request: Request, env: Env): Promise<Response> {
     timestamp: new Date().toISOString(),
   };
 
-  const results: Record<string, boolean> = {};
-
-  if (env.WEBHOOK_URL) {
-    results.webhook = await sendWebhook(env.WEBHOOK_URL, testPayload);
-  }
-
-  if (env.RESEND_API_KEY && env.ALERT_EMAIL_TO) {
-    const from = env.ALERT_EMAIL_FROM || 'Claude Alertr <alerts@resend.dev>';
-    results.email = await sendEmail(env.RESEND_API_KEY, env.ALERT_EMAIL_TO, from, testPayload);
-  }
-
-  if (Object.keys(results).length === 0) {
-    return jsonResponse(
-      {
-        error: 'No notification channels configured',
-        help: 'Set WEBHOOK_URL for webhook alerts, or RESEND_API_KEY + ALERT_EMAIL_TO for email alerts.',
-      },
-      500,
-    );
-  }
-
-  return jsonResponse({ ok: true, test: true, results });
+  const result = await dispatchAll(env, testPayload);
+  if (result instanceof Response) return result;
+  return jsonResponse({ ok: true, test: true, results: result });
 }
 
 // --- Main handler ---

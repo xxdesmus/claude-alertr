@@ -240,7 +240,7 @@ async function testConn(){
     }else if(r.status===503){
       showSt('conn-status','error','<strong>AUTH_TOKEN not configured on the Worker.</strong><br>Run: <code>wrangler secret put AUTH_TOKEN</code>');
     }else if(r.status===500){
-      showSt('conn-status','warning','<strong>Connected, but no notification channels configured.</strong><br>Set at least one via <code>wrangler secret put WEBHOOK_URL</code> or <code>wrangler secret put RESEND_API_KEY</code>');
+      showSt('conn-status','warning','<strong>Connected, but no notification channels configured.</strong><br>Set at least one via <code>wrangler secret put WEBHOOK_URL</code>, <code>wrangler secret put RESEND_API_KEY</code>, or <code>wrangler secret put SHOUTRRR_URLS</code> (supports Slack, Discord, Telegram, Ntfy, Pushover, Gotify)');
     }else if(r.status===429){
       showSt('conn-status','error','<strong>Rate limited.</strong> Wait a minute and try again.');
     }else{
