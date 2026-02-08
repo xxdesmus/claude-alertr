@@ -159,7 +159,7 @@ async function sendEmail(
           `<tr><td style="padding: 8px; font-weight: bold;">Waiting since</td><td style="padding: 8px;">${safeTimestamp}</td></tr>`,
           '</table>',
           '<br/>',
-          '<p style="color: #6b7280; font-size: 14px;">This alert was sent because Claude has been waiting for more than 1 minute for your response.</p>',
+          '<p style="color: #6b7280; font-size: 14px;">This alert was sent because Claude has been waiting for your response.</p>',
           '</div>',
         ].join('\n'),
       }),

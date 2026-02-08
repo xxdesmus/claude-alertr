@@ -32,6 +32,8 @@ ALERTR_URL=$(grep -E '^CLAUDE_ALERTR_URL=' "$CONFIG_FILE" 2>/dev/null | head -1 
 ALERTR_TOKEN=$(grep -E '^CLAUDE_ALERTR_TOKEN=' "$CONFIG_FILE" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' | tr -d "'")
 ALERT_DELAY=$(grep -E '^CLAUDE_ALERTR_DELAY=' "$CONFIG_FILE" 2>/dev/null | head -1 | cut -d'=' -f2- | tr -d '"' | tr -d "'")
 ALERT_DELAY="${ALERT_DELAY:-60}"
+ALERT_DELAY=$(echo "$ALERT_DELAY" | tr -cd '0-9')
+ALERT_DELAY="${ALERT_DELAY:-60}"
 
 if [ -z "$ALERTR_URL" ]; then
   exit 0
@@ -39,6 +41,7 @@ fi
 
 ALERT_DIR="/tmp/claude-alertr"
 mkdir -p "$ALERT_DIR"
+chmod 700 "$ALERT_DIR"
 ALERT_FILE="$ALERT_DIR/$SESSION_ID"
 PID_FILE="$ALERT_DIR/${SESSION_ID}.pid"
 

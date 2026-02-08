@@ -51,7 +51,7 @@ Interpret the result:
 ### 4. Confirm setup
 
 Tell the user:
-- claude-alertr is configured and will alert them after **{delay}** seconds of inactivity
+- claude-alertr is configured and will alert them if Claude has been waiting for their input for more than **{delay}** seconds
 - Config is stored at `~/.claude-alertr/config`
 - The plugin hooks are automatically registered — no manual `settings.json` editing needed
 - To change settings later, edit `~/.claude-alertr/config` or run `/claude-alertr:setup` again
