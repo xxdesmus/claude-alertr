@@ -4,6 +4,8 @@ Get notified when [Claude Code](https://docs.anthropic.com/en/docs/claude-code) 
 
 When Claude hits a permission prompt or asks a question, claude-alertr waits a configurable delay (default: 60s) and then sends you an alert via Slack, Discord, or email — including what Claude is waiting on and which machine it's running on.
 
+> **Disclaimer:** This is an independent, community-built tool. It is not affiliated with, endorsed by, or supported by Anthropic. Use of Claude Code is subject to Anthropic's [Terms of Service](https://www.anthropic.com/terms).
+
 ## How It Works
 
 Two local shell hooks monitor Claude Code. When Claude is blocked waiting for you, a background timer starts. If you don't respond in time, the hook POSTs to a Cloudflare Worker you deploy, which relays the alert to your notification channels. When you respond, the timer is automatically cancelled.
@@ -163,10 +165,6 @@ npm run deploy       # Deploy to Cloudflare
 - [Node.js](https://nodejs.org/) 18+
 - [Cloudflare account](https://dash.cloudflare.com/) (free tier works)
 - [`jq`](https://jqlang.github.io/jq/) and [`curl`](https://curl.se/) installed locally
-
-## Disclaimer
-
-This is an independent, community-built tool. It is not affiliated with, endorsed by, or supported by Anthropic. Use of Claude Code is subject to Anthropic's [Terms of Service](https://www.anthropic.com/terms).
 
 ## License
 
