@@ -1,6 +1,6 @@
 name = "claude-alertr"
 main = "src/index.ts"
-compatibility_date = "2025-01-06"
+compatibility_date = "2026-06-14"
 compatibility_flags = ["nodejs_compat"]
 
 # Secrets (set via `wrangler secret put <NAME>`):
@@ -9,3 +9,7 @@ compatibility_flags = ["nodejs_compat"]
 #   ALERT_EMAIL_TO   - Recipient email address
 #   ALERT_EMAIL_FROM - Sender address (default: "Claude Alertr <alerts@resend.dev>")
 #   AUTH_TOKEN        - Bearer token to authenticate hook requests (required)
+
+[observability]
+enabled = true
+head_sampling_rate = 1
