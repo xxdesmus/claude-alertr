@@ -11,11 +11,11 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241230.0",
     "typescript": "^5.7.0",
-    "vitest": "^4.0.0",
+    "vitest": "^4.1.0",
     "wrangler": "^4.59.1"
   },
   "overrides": {
-    "vite": ">=7.3.2",
+    "vite": ">=8.0.16",
     "picomatch": ">=4.0.4",
     "rollup": ">=4.59.0",
     "brace-expansion": "^2.0.1",
@@ -23,12 +23,14 @@
     "flatted": ">=3.4.2",
     "yaml": ">=2.8.3",
     "ajv": ">=6.14.0",
-    "undici": ">=7.24.0",
+    "undici": ">=8.5.0",
+    "esbuild": ">=0.28.1",
+    "ws": ">=8.21.0",
     "micromatch": {
       "picomatch": ">=2.3.2"
     },
     "miniflare": {
-      "undici": ">=7.24.0"
+      "undici": ">=8.5.0"
     }
   }
 }
