@@ -98,11 +98,14 @@ async function checkAuth(request: Request, env: Env): Promise<Response | null> {
 
 // --- Notification dispatch ---
 
+const FETCH_TIMEOUT_MS = 10_000;
+
 async function sendWebhook(url: string, payload: AlertPayload): Promise<boolean> {
   try {
     const response = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       body: JSON.stringify({
         text: [
           payload.hostname ? `[${payload.hostname}] ` : '',
@@ -146,6 +149,7 @@ async function sendEmail(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
       body: JSON.stringify({
         from,
         to: [to],
@@ -189,35 +193,49 @@ async function dispatchAll(
   payload: AlertPayload,
 ): Promise<Record<string, unknown> | Response> {
   const results: Record<string, unknown> = {};
+  const tasks: Promise<void>[] = [];
 
   if (env.WEBHOOK_URL) {
-    results.webhook = await sendWebhook(env.WEBHOOK_URL, payload);
+    tasks.push(
+      sendWebhook(env.WEBHOOK_URL, payload).then((ok) => {
+        results.webhook = ok;
+      }),
+    );
   }
 
   if (env.RESEND_API_KEY && env.ALERT_EMAIL_TO) {
     const from = env.ALERT_EMAIL_FROM || 'Claude Alertr <alerts@resend.dev>';
-    results.email = await sendEmail(env.RESEND_API_KEY, env.ALERT_EMAIL_TO, from, payload);
+    tasks.push(
+      sendEmail(env.RESEND_API_KEY, env.ALERT_EMAIL_TO, from, payload).then((ok) => {
+        results.email = ok;
+      }),
+    );
   }
 
   if (env.SHOUTRRR_URLS) {
     const urls = parseShoutrrrUrls(env.SHOUTRRR_URLS);
-    const shoutrrrResults = await dispatchShoutrrr(urls, payload);
-    for (let i = 0; i < shoutrrrResults.length; i++) {
-      const r = shoutrrrResults[i];
-      const key = shoutrrrResults.filter((s, j) => j < i && s.service === r.service).length > 0
-        ? `shoutrrr:${r.service}:${i}`
-        : `shoutrrr:${r.service}`;
-      // Include status/error details for failed channels to aid debugging
-      if (r.success) {
-        results[key] = true;
-      } else {
-        const detail: Record<string, unknown> = { success: false };
-        if (r.status) detail.status = r.status;
-        if (r.error) detail.error = r.error;
-        results[key] = detail;
-      }
-    }
+    tasks.push(
+      dispatchShoutrrr(urls, payload).then((shoutrrrResults) => {
+        for (let i = 0; i < shoutrrrResults.length; i++) {
+          const r = shoutrrrResults[i];
+          const key = shoutrrrResults.filter((s, j) => j < i && s.service === r.service).length > 0
+            ? `shoutrrr:${r.service}:${i}`
+            : `shoutrrr:${r.service}`;
+          // Include status/error details for failed channels to aid debugging
+          if (r.success) {
+            results[key] = true;
+          } else {
+            const detail: Record<string, unknown> = { success: false };
+            if (r.status) detail.status = r.status;
+            if (r.error) detail.error = r.error;
+            results[key] = detail;
+          }
+        }
+      }),
+    );
   }
+
+  await Promise.all(tasks);
 
   if (Object.keys(results).length === 0) {
     return jsonResponse(
@@ -288,7 +306,9 @@ export default {
       return new Response(getSetupPageHtml(), {
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
-          'Content-Security-Policy': "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'",
+          'Content-Security-Policy':
+            "default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+          'X-Content-Type-Options': 'nosniff',
         },
       });
     }

@@ -119,6 +119,8 @@ function formatMessage(payload: AlertPayload): { title: string; body: string } {
 
 // --- Service adapters ---
 
+const FETCH_TIMEOUT_MS = 10_000;
+
 interface AdapterResult {
   ok: boolean;
   status?: number;
@@ -135,6 +137,7 @@ async function sendSlack(parsed: ParsedUrl, payload: AlertPayload): Promise<Adap
   const response = await fetch(webhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     body: JSON.stringify({ text: `*${title}*\n${body}` }),
   });
   return { ok: response.ok, status: response.status };
@@ -152,6 +155,7 @@ async function sendDiscord(parsed: ParsedUrl, payload: AlertPayload): Promise<Ad
   const response = await fetch(webhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     body: JSON.stringify({ content: `**${title}**\n${body}` }),
   });
   return { ok: response.ok, status: response.status };
@@ -170,6 +174,7 @@ async function sendTelegram(parsed: ParsedUrl, payload: AlertPayload): Promise<A
       fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
         body: JSON.stringify({ chat_id: chat.trim(), text: body }),
       }),
     ),
@@ -192,7 +197,12 @@ async function sendNtfy(parsed: ParsedUrl, payload: AlertPayload): Promise<Adapt
     headers.Authorization = `Basic ${btoa(`${parsed.user}:${parsed.password}`)}`;
   }
 
-  const response = await fetch(url, { method: 'POST', headers, body });
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    body,
+  });
   return { ok: response.ok, status: response.status };
 }
 
@@ -216,6 +226,7 @@ async function sendPushover(parsed: ParsedUrl, payload: AlertPayload): Promise<A
   const response = await fetch('https://api.pushover.net/1/messages.json', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     body: JSON.stringify(reqBody),
   });
   return { ok: response.ok, status: response.status };
@@ -236,6 +247,7 @@ async function sendGotify(parsed: ParsedUrl, payload: AlertPayload): Promise<Ada
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     body: JSON.stringify({ title, message: body, priority: 5 }),
   });
   return { ok: response.ok, status: response.status };
@@ -257,6 +269,7 @@ async function sendGeneric(parsed: ParsedUrl, payload: AlertPayload): Promise<Ad
   const response = await fetch(url, {
     method: 'POST',
     headers,
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     body: JSON.stringify({
       title,
       message: body,

@@ -45,11 +45,17 @@ chmod 700 "$ALERT_DIR"
 ALERT_FILE="$ALERT_DIR/$SESSION_ID"
 PID_FILE="$ALERT_DIR/${SESSION_ID}.pid"
 
-# Cancel any existing timer for this session (prevents duplicate alerts)
+# Cancel any existing timer for this session (prevents duplicate alerts).
+# PID + start-time are checked together before kill, since the raw PID alone
+# could have been recycled by an unrelated process since we recorded it.
 if [ -f "$PID_FILE" ]; then
-  OLD_PID=$(cat "$PID_FILE" 2>/dev/null || true)
-  if [ -n "$OLD_PID" ]; then
-    kill "$OLD_PID" 2>/dev/null || true
+  OLD_PID=$(sed -n '1p' "$PID_FILE" 2>/dev/null || true)
+  OLD_STARTED=$(sed -n '2p' "$PID_FILE" 2>/dev/null || true)
+  if [ -n "$OLD_PID" ] && [ -n "$OLD_STARTED" ]; then
+    CUR_STARTED=$(ps -o lstart= -p "$OLD_PID" 2>/dev/null | awk '{$1=$1;print}')
+    if [ -n "$CUR_STARTED" ] && [ "$CUR_STARTED" = "$OLD_STARTED" ]; then
+      kill "$OLD_PID" 2>/dev/null || true
+    fi
   fi
 fi
 
@@ -97,6 +103,8 @@ echo "$INPUT" | jq --arg ts "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" --arg details "$D
   rm -f "$PID_FILE"
 ) &
 
-echo $! > "$PID_FILE"
+NEW_PID=$!
+NEW_STARTED=$(ps -o lstart= -p "$NEW_PID" 2>/dev/null | awk '{$1=$1;print}')
+printf '%s\n%s\n' "$NEW_PID" "$NEW_STARTED" > "$PID_FILE"
 
 exit 0

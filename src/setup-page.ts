@@ -18,7 +18,7 @@ header p{color:#6b7280;font-size:16px}
 .progress-step .circle{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;border:2px solid #d1d5db;color:#9ca3af;flex-shrink:0}
 .progress-step.active .circle{background:#4f46e5;border-color:#4f46e5;color:#fff}
 .progress-step.completed .circle{background:#059669;border-color:#059669;color:#fff}
-.progress-step .label{font-size:13px;color:#9ca3af;white-space:nowrap}
+.progress-step .label{font-size:13px;color:#6b7280;white-space:nowrap}
 .progress-step.active .label{color:#111827;font-weight:600}
 .progress-step.completed .label{color:#059669}
 .progress-line{flex:1;height:2px;background:#e5e7eb;margin:0 8px}
@@ -77,7 +77,7 @@ noscript .noscript-msg{max-width:640px;margin:40px auto;padding:20px;background:
   header h1{font-size:20px}
   .step{padding:16px}
   .step h2{font-size:18px}
-  .progress-step .label{display:none}
+  .progress-step .label{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
   .slider-group{flex-direction:column;align-items:stretch}
   .slider-group input[type="number"]{width:100%}
   .copy-btn{position:static;display:block;width:100%;margin-top:8px;padding:8px;text-align:center;background:rgba(255,255,255,.15)}
@@ -131,8 +131,8 @@ noscript .noscript-msg{max-width:640px;margin:40px auto;padding:20px;background:
     <h2 id="s2h">Configure Alert Timing</h2>
     <p style="margin-bottom:16px;color:#6b7280">How long should Claude wait before alerting you?</p>
     <div class="slider-group">
-      <input type="range" id="delay-range" min="15" max="300" step="15" value="60" oninput="syncDelay(this.value)">
-      <input type="number" id="delay-input" min="15" max="300" step="15" value="60" oninput="syncDelay(this.value)">
+      <input type="range" id="delay-range" aria-label="Alert delay in seconds" min="15" max="300" step="15" value="60" oninput="syncDelay(this.value)">
+      <input type="number" id="delay-input" aria-label="Alert delay in seconds" min="15" max="300" step="15" value="60" oninput="syncDelay(this.value)">
       <span>seconds</span>
     </div>
     <p class="helper">60 seconds is recommended. Shorter delays may fire while you're still reading output.</p>
